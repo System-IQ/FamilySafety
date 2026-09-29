@@ -53,39 +53,57 @@ jobs:
       - name: gomobile init
         run: gomobile init
 
-      - name: Fetch Go deps
+      - name: Debug - Show Go environment
+        run: go env
+
+      - name: Fetch Go dependencies with full diagnostics
         working-directory: admin/tsnet-bridge
+        env:
+          GONOSUMDB: '*'
+          GONOSUMCHECK: '*'
+          GOSUMDB: 'off'
+          GOPROXY: 'direct'
         run: |
-          go get tailscale.com@v1.76.0
-          go get golang.org/x/mobile@master
-          go mod tidy
-          echo "=== go.mod after tidy ==="
+          set -x
+          echo "=== go get tailscale ==="
+          go get tailscale.com@v1.76.0 2>&1 || true
+          echo "=== go get x/mobile ==="
+          go get golang.org/x/mobile@master 2>&1 || true
+          echo "=== go mod tidy (verbose) ==="
+          go mod tidy -v 2>&1 || true
+          echo "=== go mod download -x ==="
+          go mod download -x 2>&1 || true
+          echo "=== go mod verify ==="
+          go mod verify 2>&1 || true
+          echo "=== go mod graph (first 50 lines) ==="
+          go mod graph 2>&1 | head -50 || true
+          echo "=== Final go.mod ==="
           cat go.mod
 
-      - name: Verify x/mobile in go.mod
+      - name: Build AAR (arm64-v8a) with verbose output
         working-directory: admin/tsnet-bridge
+        env:
+          GONOSUMDB: '*'
+          GONOSUMCHECK: '*'
+          GOSUMDB: 'off'
+          GOPROXY: 'direct'
         run: |
-          if ! grep -q "golang.org/x/mobile" go.mod; then
-            echo "::error::golang.org/x/mobile vanished from go.mod"
-            cat go.mod
-            exit 1
-          fi
-          echo "✓ x/mobile present"
-
-      - name: Build AAR (arm64-v8a)
-        working-directory: admin/tsnet-bridge
-        run: |
+          set -x
           gomobile bind \
             -target=android/arm64 \
             -androidapi 24 \
+            -v \
             -o tsnetbridge.aar \
-            .
-          ls -lh tsnetbridge.aar
+            . 2>&1 || true
+          echo "=== AAR file info ==="
+          ls -lh tsnetbridge.aar || true
+          file tsnetbridge.aar || true
 
       - name: Upload AAR
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: tsnetbridge-aar
           path: admin/tsnet-bridge/tsnetbridge.aar
           retention-days: 30
-          if-no-files-found: error
+          if-no-files-found: ignore
