@@ -10,14 +10,14 @@ import tsnetbridge.Tsnetbridge
 /**
  * Kotlin wrapper around the gomobile-generated tsnet API.
  *
- * Maps to Go:
- *   tsnetbridge.NewServer(stateDir, hostname, authKey) *Server
- *   (*Server).Start() error
- *   (*Server).Stop()
- *   (*Server).Status() string
- *   (*Server).IsRunning() bool
- *   (*Server).IP4() string
- *   (*Server).ListenAndProxy(port, target) error
+ * ACTUAL gomobile method names (verified from classes.jar via JVM reflection):
+ *   tsnetbridge.Tsnetbridge.newServer(stateDir, hostname, authKey) : Server
+ *   Server.start()                   - throws on error
+ *   Server.stop()
+ *   Server.status()                  : String
+ *   Server.isRunning()               : Boolean
+ *   Server.iP4()                     : String  (NOTE: capital P!)
+ *   Server.listenAndProxy(long, String) - Go int -> Java long
  */
 class TsnetServerWrapper(private val context: Context) {
 
@@ -27,11 +27,27 @@ class TsnetServerWrapper(private val context: Context) {
     var lastError: String? = null
         private set
 
-    fun isRunning(): Boolean = goServer?.isRunning() ?: false
+    fun isRunning(): Boolean = try {
+        goServer?.isRunning() ?: false
+    } catch (t: Throwable) {
+        Log.e(TAG, "isRunning failed", t)
+        false
+    }
 
-    fun status(): String = goServer?.status() ?: "stopped"
+    fun status(): String = try {
+        goServer?.status() ?: "stopped"
+    } catch (t: Throwable) {
+        Log.e(TAG, "status failed", t)
+        "error: ${t.message}"
+    }
 
-    fun ip4(): String = goServer?.ip4() ?: ""
+    fun ip4(): String = try {
+        // NOTE: gomobile exports "iP4" (capital P)
+        goServer?.iP4() ?: ""
+    } catch (t: Throwable) {
+        Log.e(TAG, "iP4 failed", t)
+        ""
+    }
 
     suspend fun start(authKey: String, hostname: String = "admin-phone"): Result<Unit> =
         withContext(Dispatchers.IO) {
@@ -45,7 +61,7 @@ class TsnetServerWrapper(private val context: Context) {
                 Result.success(Unit)
             } catch (t: Throwable) {
                 lastError = t.message ?: "unknown error"
-                Log.e("TsnetWrapper", "start failed", t)
+                Log.e(TAG, "start failed", t)
                 Result.failure(t)
             }
         }
@@ -53,10 +69,12 @@ class TsnetServerWrapper(private val context: Context) {
     suspend fun listenAndProxy(port: Int, target: String): Result<Unit> =
         withContext(Dispatchers.IO) {
             try {
-                goServer?.listenAndProxy(port, target)
+                // gomobile widens Go int -> Java long
+                goServer?.listenAndProxy(port.toLong(), target)
                 Result.success(Unit)
             } catch (t: Throwable) {
                 lastError = t.message ?: "listen failed"
+                Log.e(TAG, "listenAndProxy failed", t)
                 Result.failure(t)
             }
         }
@@ -65,7 +83,11 @@ class TsnetServerWrapper(private val context: Context) {
         try {
             goServer?.stop()
         } catch (t: Throwable) {
-            Log.e("TsnetWrapper", "stop failed", t)
+            Log.e(TAG, "stop failed", t)
         }
+    }
+
+    companion object {
+        private const val TAG = "TsnetWrapper"
     }
 }
