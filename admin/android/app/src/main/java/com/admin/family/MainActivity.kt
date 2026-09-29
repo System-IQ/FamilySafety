@@ -12,11 +12,9 @@ import com.admin.family.ui.navigation.AppNavigation
 import com.admin.family.ui.theme.FamilyAdminTheme
 
 class MainActivity : ComponentActivity() {
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-
         val app = application as FamilyAdminApp
 
         setContent {
@@ -29,6 +27,8 @@ class MainActivity : ComponentActivity() {
                         deviceRepository = app.deviceRepository,
                         settingsRepository = app.settingsRepository,
                         apiClient = app.apiClient,
+                        tsnetWrapper = app.tsnetWrapper,
+                        authKeyStore = app.authKeyStore,
                     )
                 }
             }
