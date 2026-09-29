@@ -40,26 +40,30 @@ jobs:
 
       - name: Install gomobile + gobind
         run: |
-          go install golang.org/x/mobile/cmd/gomobile@master
-          go install golang.org/x/mobile/cmd/gobind@master
+          go install golang.org/x/mobile/cmd/gomobile@latest
+          go install golang.org/x/mobile/cmd/gobind@latest
           echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
 
       - name: gomobile init
         run: gomobile init
 
-      - name: Fetch Go deps (ensure x/mobile stays)
+      - name: Fetch deps (NO tidy — that's the fix)
         working-directory: admin/tsnet-bridge
         env:
           GOSUMDB: 'off'
           GOPROXY: 'direct'
         run: |
+          set -e
+          echo "=== Step 1: go get tailscale ==="
           go get tailscale.com@v1.76.0
+          echo "=== Step 2: go get x/mobile (real version) ==="
           go get golang.org/x/mobile@latest
-          go mod tidy
-          # إعادة إضافة x/mobile بعد tidy لضمان بقائه
-          go get golang.org/x/mobile@latest
-          echo "=== go.mod ==="
+          echo "=== Step 3: go mod download ==="
+          go mod download
+          echo "=== Final go.mod ==="
           cat go.mod
+          echo "=== Check x/mobile is present ==="
+          grep "golang.org/x/mobile" go.mod || (echo "::error::x/mobile missing" && exit 1)
 
       - name: Build AAR
         working-directory: admin/tsnet-bridge
@@ -67,12 +71,15 @@ jobs:
           GOSUMDB: 'off'
           GOPROXY: 'direct'
         run: |
+          set -e
           gomobile bind \
             -target=android/arm64 \
             -androidapi 24 \
             -o tsnetbridge.aar \
             .
+          echo "=== AAR info ==="
           ls -lh tsnetbridge.aar
+          file tsnetbridge.aar
 
       - name: Upload AAR
         uses: actions/upload-artifact@v4
