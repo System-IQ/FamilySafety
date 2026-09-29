@@ -13,8 +13,14 @@
     "state"
   ],
   "properties": {
-    "alert_id": { "type": "string", "minLength": 8 },
-    "device_id": { "type": "string", "minLength": 4 },
+    "alert_id": {
+      "type": "string",
+      "minLength": 8
+    },
+    "device_id": {
+      "type": "string",
+      "minLength": 4
+    },
     "alert_type": {
       "type": "string",
       "enum": [
@@ -33,32 +39,127 @@
     },
     "severity": {
       "type": "string",
-      "enum": ["info", "warning", "critical"]
+      "enum": [
+        "info",
+        "warning",
+        "critical"
+      ]
     },
-    "triggered_at": { "type": "string", "format": "date-time" },
+    "triggered_at": {
+      "type": "string",
+      "format": "date-time"
+    },
     "state": {
       "type": "string",
-      "enum": ["new", "acknowledged", "resolved", "dismissed", "expired"]
+      "enum": [
+        "new",
+        "acknowledged",
+        "resolved",
+        "dismissed",
+        "expired"
+      ]
     },
     "last_location": {
-      "type": ["object", "null"],
+      "type": [
+        "object",
+        "null"
+      ],
       "additionalProperties": false,
-      "required": ["latitude", "longitude", "timestamp"],
+      "required": [
+        "latitude",
+        "longitude",
+        "timestamp"
+      ],
       "properties": {
-        "latitude": { "type": "number", "minimum": -90, "maximum": 90 },
-        "longitude": { "type": "number", "minimum": -180, "maximum": 180 },
-        "accuracy_meters": { "type": ["number", "null"], "minimum": 0 },
-        "timestamp": { "type": "string", "format": "date-time" }
+        "latitude": {
+          "type": "number",
+          "minimum": -90,
+          "maximum": 90
+        },
+        "longitude": {
+          "type": "number",
+          "minimum": -180,
+          "maximum": 180
+        },
+        "accuracy_meters": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        }
       }
     },
-    "battery_level_percent": { "type": ["integer", "null"], "minimum": 0, "maximum": 100 },
-    "note": { "type": ["string", "null"], "maxLength": 512 },
-    "acknowledged_by": { "type": ["string", "null"] },
-    "acknowledged_at": { "type": ["string", "null"], "format": "date-time" },
-    "resolved_at": { "type": ["string", "null"], "format": "date-time" },
+    "battery_level_percent": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0,
+      "maximum": 100
+    },
+    "note": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 512
+    },
+    "acknowledged_by": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "acknowledged_at": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "resolved_at": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
     "provenance": {
-      "type": ["object", "null"],
+      "type": [
+        "object",
+        "null"
+      ],
       "additionalProperties": true
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "dismissed_at": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "dismiss_reason": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 512
     }
   }
 }

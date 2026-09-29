@@ -115,6 +115,39 @@ CREATE TABLE IF NOT EXISTS zone_states (
 );
 CREATE INDEX IF NOT EXISTS idx_zone_states_device
     ON zone_states(device_id);
+
+-- A4: Alerts
+CREATE TABLE IF NOT EXISTS alerts (
+    alert_id                TEXT PRIMARY KEY,
+    device_id               TEXT NOT NULL,
+    alert_type              TEXT NOT NULL,
+    severity                TEXT NOT NULL,
+    state                   TEXT NOT NULL DEFAULT 'new',
+    triggered_at            TEXT NOT NULL,
+    triggered_by_user_id    TEXT,
+    note                    TEXT,
+    last_latitude           REAL,
+    last_longitude          REAL,
+    last_accuracy_meters    REAL,
+    last_location_ts        TEXT,
+    battery_level_percent   INTEGER,
+    acknowledged_by         TEXT,
+    acknowledged_at         TEXT,
+    resolved_at             TEXT,
+    dismissed_at            TEXT,
+    dismiss_reason          TEXT,
+    provenance_json         TEXT,
+    created_at              TEXT NOT NULL,
+    updated_at              TEXT NOT NULL,
+    FOREIGN KEY (triggered_by_user_id) REFERENCES users(user_id),
+    FOREIGN KEY (acknowledged_by) REFERENCES users(user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_alerts_device_state
+    ON alerts(device_id, state, triggered_at DESC);
+CREATE INDEX IF NOT EXISTS idx_alerts_type_ts
+    ON alerts(alert_type, triggered_at DESC);
+CREATE INDEX IF NOT EXISTS idx_alerts_severity_state
+    ON alerts(severity, state);
 """
 
 

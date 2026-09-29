@@ -26,6 +26,8 @@ def _clean_db():
     Order matters because some tables have FKs to users/devices.
     """
     with get_conn() as conn:
+        # A4
+        conn.execute("DELETE FROM alerts")
         # A3
         conn.execute("DELETE FROM zone_states")
         conn.execute("DELETE FROM safe_zones")
