@@ -47,22 +47,22 @@ jobs:
       - name: gomobile init
         run: gomobile init
 
-      - name: Fetch deps (NO tidy — that's the fix)
+      - name: Fetch deps (go get, NO go mod tidy)
         working-directory: admin/tsnet-bridge
         env:
           GOSUMDB: 'off'
           GOPROXY: 'direct'
         run: |
           set -e
-          echo "=== Step 1: go get tailscale ==="
+          echo "=== go get tailscale ==="
           go get tailscale.com@v1.76.0
-          echo "=== Step 2: go get x/mobile (real version) ==="
+          echo "=== go get x/mobile ==="
           go get golang.org/x/mobile@latest
-          echo "=== Step 3: go mod download ==="
+          echo "=== go mod download ==="
           go mod download
           echo "=== Final go.mod ==="
           cat go.mod
-          echo "=== Check x/mobile is present ==="
+          echo "=== Verify x/mobile ==="
           grep "golang.org/x/mobile" go.mod || (echo "::error::x/mobile missing" && exit 1)
 
       - name: Build AAR
