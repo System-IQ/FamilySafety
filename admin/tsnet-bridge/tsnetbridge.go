@@ -145,12 +145,11 @@ if s.ts == nil {
 return ""
 }
 
-ip := s.ts.TailscaleIPs()
-if !ip.IsValid() || !ip.Is4() {
+ip4, _ := s.ts.TailscaleIPs()
+if !ip4.IsValid() || !ip4.Is4() {
 return ""
 }
-
-return ip.String()
+return ip4.String()
 }
 
 // ListenAndProxy starts listening on the tailnet at the given port
