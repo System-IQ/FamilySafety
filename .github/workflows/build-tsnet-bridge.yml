@@ -6,9 +6,6 @@ on:
     paths:
       - 'admin/tsnet-bridge/**'
       - '.github/workflows/build-tsnet-bridge.yml'
-  pull_request:
-    paths:
-      - 'admin/tsnet-bridge/**'
   workflow_dispatch:
 
 jobs:
@@ -41,9 +38,6 @@ jobs:
         with:
           go-version: '1.23'
 
-      - name: Show Go version
-        run: go version
-
       - name: Install gomobile + gobind
         run: |
           go install golang.org/x/mobile/cmd/gomobile@master
@@ -53,57 +47,36 @@ jobs:
       - name: gomobile init
         run: gomobile init
 
-      - name: Debug - Show Go environment
-        run: go env
-
-      - name: Fetch Go dependencies with full diagnostics
+      - name: Fetch Go deps (ensure x/mobile stays)
         working-directory: admin/tsnet-bridge
         env:
-          GONOSUMDB: '*'
-          GONOSUMCHECK: '*'
           GOSUMDB: 'off'
           GOPROXY: 'direct'
         run: |
-          set -x
-          echo "=== go get tailscale ==="
-          go get tailscale.com@v1.76.0 2>&1 || true
-          echo "=== go get x/mobile ==="
-          go get golang.org/x/mobile@master 2>&1 || true
-          echo "=== go mod tidy (verbose) ==="
-          go mod tidy -v 2>&1 || true
-          echo "=== go mod download -x ==="
-          go mod download -x 2>&1 || true
-          echo "=== go mod verify ==="
-          go mod verify 2>&1 || true
-          echo "=== go mod graph (first 50 lines) ==="
-          go mod graph 2>&1 | head -50 || true
-          echo "=== Final go.mod ==="
+          go get tailscale.com@v1.76.0
+          go get golang.org/x/mobile@latest
+          go mod tidy
+          # إعادة إضافة x/mobile بعد tidy لضمان بقائه
+          go get golang.org/x/mobile@latest
+          echo "=== go.mod ==="
           cat go.mod
 
-      - name: Build AAR (arm64-v8a) with verbose output
+      - name: Build AAR
         working-directory: admin/tsnet-bridge
         env:
-          GONOSUMDB: '*'
-          GONOSUMCHECK: '*'
           GOSUMDB: 'off'
           GOPROXY: 'direct'
         run: |
-          set -x
           gomobile bind \
             -target=android/arm64 \
             -androidapi 24 \
-            -v \
             -o tsnetbridge.aar \
-            . 2>&1 || true
-          echo "=== AAR file info ==="
-          ls -lh tsnetbridge.aar || true
-          file tsnetbridge.aar || true
+            .
+          ls -lh tsnetbridge.aar
 
       - name: Upload AAR
-        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: tsnetbridge-aar
           path: admin/tsnet-bridge/tsnetbridge.aar
-          retention-days: 30
-          if-no-files-found: ignore
+          if-no-files-found: error
