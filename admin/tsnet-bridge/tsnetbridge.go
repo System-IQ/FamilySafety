@@ -103,6 +103,17 @@ defer cancel()
 
 st, err := ts.Up(ctx)
 if err != nil {
+// Android without root blocks netlink (needed for route table).
+// tsnet still works in userspace networking mode, so this
+// specific error is non-fatal.
+if strings.Contains(err.Error(), "netlinkrib") ||
+strings.Contains(err.Error(), "netlink") ||
+strings.Contains(err.Error(), "permission denied") {
+s.ts = ts
+s.running = true
+s.status = "running (netlink unavailable — userspace mode)"
+return nil
+}
 s.status = "error: up: " + err.Error()
 return err
 }
