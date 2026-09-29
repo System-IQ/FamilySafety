@@ -33,10 +33,13 @@ jobs:
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/26.1.10909125" >> $GITHUB_ENV
           echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/26.1.10909125" >> $GITHUB_ENV
 
-      - name: Setup Go 1.23
+      - name: Setup Go 1.24
         uses: actions/setup-go@v5
         with:
-          go-version: '1.23'
+          go-version: '1.24'
+
+      - name: Show Go
+        run: go version
 
       - name: Install gomobile + gobind
         run: |
@@ -47,29 +50,25 @@ jobs:
       - name: gomobile init
         run: gomobile init
 
-      - name: Fetch deps (go get, NO go mod tidy)
+      - name: Fetch deps (no GOSUMDB=off)
         working-directory: admin/tsnet-bridge
-        env:
-          GOSUMDB: 'off'
-          GOPROXY: 'direct'
         run: |
           set -e
+          go env -w GOTOOLCHAIN=local
+          go env -w GOFLAGS=-mod=mod
           echo "=== go get tailscale ==="
           go get tailscale.com@v1.76.0
           echo "=== go get x/mobile ==="
           go get golang.org/x/mobile@latest
           echo "=== go mod download ==="
           go mod download
-          echo "=== Final go.mod ==="
+          echo "=== final go.mod ==="
           cat go.mod
-          echo "=== Verify x/mobile ==="
+          echo "=== verify x/mobile ==="
           grep "golang.org/x/mobile" go.mod || (echo "::error::x/mobile missing" && exit 1)
 
       - name: Build AAR
         working-directory: admin/tsnet-bridge
-        env:
-          GOSUMDB: 'off'
-          GOPROXY: 'direct'
         run: |
           set -e
           gomobile bind \
@@ -77,7 +76,6 @@ jobs:
             -androidapi 24 \
             -o tsnetbridge.aar \
             .
-          echo "=== AAR info ==="
           ls -lh tsnetbridge.aar
           file tsnetbridge.aar
 
