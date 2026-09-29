@@ -8,12 +8,13 @@ from .auth import router as auth_router
 from .devices import router as devices_router
 from .events import router as events_router
 from .health import router as health_router
+from .zones import router as zones_router
 
 
 def create_app() -> FastAPI:
     app = FastAPI(
         title="Family Safety API",
-        version="0.3.0",
+        version="0.4.0",
         description="Backend for Family Safety A/B.",
     )
     app.add_middleware(RequestLogMiddleware)
@@ -23,6 +24,7 @@ def create_app() -> FastAPI:
     app.include_router(devices_router)
     app.include_router(events_router)
     app.include_router(audit_router)
+    app.include_router(zones_router)
     return app
 
 

@@ -1,6 +1,6 @@
 """Backend test fixtures — isolated temp SQLite per test session.
 
-Keeps all PHASE 2 fixtures + adds auth and audit/events fixtures.
+Keeps all PHASE 2 fixtures + auth + audit/events + zones.
 """
 import os
 import tempfile
@@ -21,12 +21,21 @@ from backend.db import get_conn  # noqa: E402
 
 @pytest.fixture(autouse=True)
 def _clean_db():
-    """Wipe all tables before each test (FK-safe order)."""
+    """Wipe all tables before each test (FK-safe order).
+
+    Order matters because some tables have FKs to users/devices.
+    """
     with get_conn() as conn:
+        # A3
+        conn.execute("DELETE FROM zone_states")
+        conn.execute("DELETE FROM safe_zones")
+        # A2
         conn.execute("DELETE FROM audit_events")
         conn.execute("DELETE FROM events")
+        # A1
         conn.execute("DELETE FROM refresh_tokens")
         conn.execute("DELETE FROM users")
+        # PHASE 2
         conn.execute("DELETE FROM devices")
     yield
 
@@ -37,7 +46,7 @@ def client():
         yield c
 
 
-# ---------------- PHASE 2 fixtures (kept as-is) ----------------
+# ---------------- PHASE 2 fixtures ----------------
 
 @pytest.fixture
 def valid_device_payload():
@@ -69,7 +78,6 @@ def valid_device_payload():
 
 @pytest.fixture
 def registered_user(client):
-    """Create a parent account and return creds + user info."""
     email = "parent@example.com"
     password = "super-secret-password-1234"
     r = client.post("/auth/register", json={
@@ -83,7 +91,6 @@ def registered_user(client):
 
 @pytest.fixture
 def auth_headers(client, registered_user):
-    """Login as the registered user, return Authorization header dict."""
     r = client.post("/auth/login", json={
         "email": registered_user["email"],
         "password": registered_user["password"],
@@ -94,7 +101,6 @@ def auth_headers(client, registered_user):
 
 @pytest.fixture
 def auth_tokens(client, registered_user):
-    """Return full token pair (access + refresh)."""
     r = client.post("/auth/login", json={
         "email": registered_user["email"],
         "password": registered_user["password"],
