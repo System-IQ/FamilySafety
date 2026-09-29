@@ -33,6 +33,7 @@ import (
 "time"
 
 "tailscale.com/tsnet"
+	"strings"
 )
 
 // Server wraps a tsnet.Server with lifecycle management and a
