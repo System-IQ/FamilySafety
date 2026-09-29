@@ -27,3 +27,18 @@ build/
 
 # Termux/local
 .local/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+*.egg-info/
+.venv/
+venv/
+
+# Backend runtime data
+data/
+*.db
+*.sqlite
+*.sqlite3
