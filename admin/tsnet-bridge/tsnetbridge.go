@@ -20,6 +20,9 @@
 package tsnetbridge
 
 import (
+	// Blank import: keeps golang.org/x/mobile in go.mod
+	// across go mod tidy. Required by gomobile bind.
+	_ "golang.org/x/mobile/bind"
 "context"
 "fmt"
 "io"
