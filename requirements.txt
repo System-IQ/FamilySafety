@@ -2,6 +2,7 @@
 fastapi==0.141.1
 uvicorn==0.54.0
 pydantic==2.13.5
+pyjwt==2.10.1
 
 # Contracts
 jsonschema==4.17.3
