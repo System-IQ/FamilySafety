@@ -136,23 +136,21 @@ s.running = false
 s.status = "stopped"
 }
 
-// IP4 returns the first tailnet IPv4 address (empty if not running).
+// IP4 returns the tailnet IPv4 address (empty if not running).
 func (s *Server) IP4() string {
 s.mu.Lock()
 defer s.mu.Unlock()
+
 if s.ts == nil {
 return ""
 }
-ips, err := s.ts.TailscaleIPs()
-if err != nil {
+
+ip := s.ts.TailscaleIPs()
+if !ip.IsValid() || !ip.Is4() {
 return ""
 }
-for _, ip := range ips {
-if ip.Is4() {
+
 return ip.String()
-}
-}
-return ""
 }
 
 // ListenAndProxy starts listening on the tailnet at the given port
