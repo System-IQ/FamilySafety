@@ -36,12 +36,15 @@ jobs:
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/26.1.10909125" >> $GITHUB_ENV
           echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/26.1.10909125" >> $GITHUB_ENV
 
-      - name: Setup Go 1.22
+      - name: Setup Go 1.23
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version: '1.23'
 
-      - name: Install gomobile + gobind (from @master)
+      - name: Show Go version
+        run: go version
+
+      - name: Install gomobile + gobind
         run: |
           go install golang.org/x/mobile/cmd/gomobile@master
           go install golang.org/x/mobile/cmd/gobind@master
@@ -50,7 +53,7 @@ jobs:
       - name: gomobile init
         run: gomobile init
 
-      - name: Fetch Go deps (@master for x/mobile)
+      - name: Fetch Go deps
         working-directory: admin/tsnet-bridge
         run: |
           go get tailscale.com@v1.76.0
@@ -59,29 +62,27 @@ jobs:
           echo "=== go.mod after tidy ==="
           cat go.mod
 
-      - name: Verify x/mobile still in go.mod
+      - name: Verify x/mobile in go.mod
         working-directory: admin/tsnet-bridge
         run: |
           if ! grep -q "golang.org/x/mobile" go.mod; then
-            echo "::error::golang.org/x/mobile vanished from go.mod after go mod tidy"
-            echo "=== go.mod ==="
+            echo "::error::golang.org/x/mobile vanished from go.mod"
             cat go.mod
             exit 1
           fi
-          echo "✓ golang.org/x/mobile present in go.mod"
+          echo "✓ x/mobile present"
 
-      - name: Build AAR (arm64-v8a only)
+      - name: Build AAR (arm64-v8a)
         working-directory: admin/tsnet-bridge
         run: |
           gomobile bind \
             -target=android/arm64 \
             -androidapi 24 \
-            -v \
             -o tsnetbridge.aar \
             .
           ls -lh tsnetbridge.aar
 
-      - name: Upload AAR artifact
+      - name: Upload AAR
         uses: actions/upload-artifact@v4
         with:
           name: tsnetbridge-aar
