@@ -1,0 +1,29 @@
+# Secrets
+.env
+.env.*
+!.env.example
+*.keystore
+*.jks
+*.pem
+*.key
+secrets/
+credentials/
+
+# Build
+build/
+.gradle/
+.gradle-cache/
+*.apk
+*.aab
+
+# IDE
+.idea/
+.vscode/
+
+# Local
+*.log
+*.tmp
+*.bak
+
+# Termux/local
+.local/
