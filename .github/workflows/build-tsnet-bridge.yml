@@ -40,7 +40,6 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.22'
-          cache-dependency-path: admin/tsnet-bridge/go.sum
 
       - name: Install gomobile + gobind
         run: |
@@ -51,10 +50,10 @@ jobs:
       - name: gomobile init
         run: gomobile init
 
-      - name: Fetch Go deps + tidy
+      - name: Fetch Go deps
         working-directory: admin/tsnet-bridge
         run: |
-          go get -tool golang.org/x/mobile/cmd/gobind
+          go get golang.org/x/mobile@latest
           go get tailscale.com@v1.76.0
           go mod tidy
           echo "=== go.mod after tidy ==="
@@ -65,6 +64,8 @@ jobs:
         run: |
           if ! grep -q "golang.org/x/mobile" go.mod; then
             echo "::error::golang.org/x/mobile vanished from go.mod after go mod tidy"
+            echo "=== go.mod ==="
+            cat go.mod
             exit 1
           fi
           echo "✓ golang.org/x/mobile present in go.mod"
