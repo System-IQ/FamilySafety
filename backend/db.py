@@ -175,6 +175,38 @@ CREATE INDEX IF NOT EXISTS idx_algorithms_algorithm
     ON algorithms(algorithm_id);
 CREATE INDEX IF NOT EXISTS idx_algorithms_production
     ON algorithms(algorithm_id, status);
+
+-- A6: Derived Records (provenance-first)
+CREATE TABLE IF NOT EXISTS derived_records (
+    record_id               TEXT PRIMARY KEY,
+    device_id               TEXT NOT NULL,
+    record_type             TEXT NOT NULL,
+    timestamp               TEXT NOT NULL,
+    payload_json            TEXT NOT NULL DEFAULT '{}',
+    source_record_ids_json  TEXT NOT NULL,
+    algorithm_id            TEXT NOT NULL,
+    algorithm_version       TEXT NOT NULL,
+    calculated_at           TEXT NOT NULL,
+    confidence              REAL NOT NULL,
+    evidence_json           TEXT NOT NULL,
+    uncertainty_level       TEXT NOT NULL DEFAULT 'none',
+    uncertainty_notes       TEXT,
+    input_hash              TEXT,
+    quality_score           REAL NOT NULL,
+    insufficient_data       INTEGER NOT NULL DEFAULT 0,
+    insufficient_reason     TEXT,
+    created_by              TEXT,
+    created_at              TEXT NOT NULL,
+    FOREIGN KEY (created_by) REFERENCES users(user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_derived_device_ts
+    ON derived_records(device_id, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_derived_type_ts
+    ON derived_records(record_type, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_derived_algorithm
+    ON derived_records(algorithm_id, algorithm_version);
+CREATE INDEX IF NOT EXISTS idx_derived_quality
+    ON derived_records(quality_score);
 """
 
 

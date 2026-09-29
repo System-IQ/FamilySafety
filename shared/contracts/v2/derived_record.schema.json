@@ -69,7 +69,10 @@
           "additionalProperties": false,
           "required": ["level"],
           "properties": {
-            "level": { "type": "string", "enum": ["none", "low", "medium", "high"] },
+            "level": {
+              "type": "string",
+              "enum": ["none", "low", "medium", "high"]
+            },
             "notes": { "type": ["string", "null"], "maxLength": 1024 }
           }
         },
@@ -78,17 +81,28 @@
     },
     "quality_score": { "type": "number", "minimum": 0, "maximum": 100 },
     "insufficient_data": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["is_insufficient", "reason"],
-      "properties": {
-        "is_insufficient": { "type": "boolean" },
-        "reason": { "type": "string", "minLength": 3, "maxLength": 512 }
-      }
+      "oneOf": [
+        { "type": "boolean" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["is_insufficient", "reason"],
+          "properties": {
+            "is_insufficient": { "type": "boolean" },
+            "reason": { "type": "string", "minLength": 3, "maxLength": 512 }
+          }
+        }
+      ]
+    },
+    "insufficient_reason": {
+      "type": ["string", "null"],
+      "minLength": 3,
+      "maxLength": 512
     },
     "sync_state": {
       "type": ["string", "null"],
       "enum": ["pending", "queued", "sending", "acked", "failed", "rejected", null]
-    }
+    },
+    "created_at": { "type": "string", "format": "date-time" }
   }
 }

@@ -26,6 +26,8 @@ def _clean_db():
     Reminder: any new table MUST be added here.
     """
     with get_conn() as conn:
+        # A6
+        conn.execute("DELETE FROM derived_records")
         # A5
         conn.execute("DELETE FROM algorithms")
         # A4
