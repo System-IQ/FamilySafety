@@ -5,8 +5,9 @@ pydantic==2.13.5
 
 # Contracts
 jsonschema==4.17.3
-rfc3339-validator
+rfc3339-validator==0.1.4
 
 # Tests
 pytest==9.1.1
 httpx==0.28.1
+anyio==4.15.1
