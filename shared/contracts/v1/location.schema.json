@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://familysafety.local/contracts/v1/location.schema.json",
+  "title": "Family Safety Location Contract v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["device_id", "latitude", "longitude", "accuracy_meters", "timestamp", "provider"],
+  "properties": {
+    "device_id": { "type": "string", "minLength": 4 },
+    "latitude": { "type": "number", "minimum": -90, "maximum": 90 },
+    "longitude": { "type": "number", "minimum": -180, "maximum": 180 },
+    "accuracy_meters": { "type": "number", "minimum": 0, "maximum": 10000 },
+    "altitude_meters": { "type": ["number", "null"] },
+    "speed_mps": { "type": ["number", "null"], "minimum": 0 },
+    "bearing_degrees": { "type": ["number", "null"], "minimum": 0, "maximum": 360 },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "provider": { "type": "string", "enum": ["gps", "network", "fused", "passive"] }
+  }
+}

@@ -21,6 +21,26 @@ def device_schema():
 
 
 @pytest.fixture
+def command_schema():
+    return _load_schema("command.schema.json")
+
+
+@pytest.fixture
+def location_schema():
+    return _load_schema("location.schema.json")
+
+
+@pytest.fixture
+def route_schema():
+    return _load_schema("route.schema.json")
+
+
+@pytest.fixture
+def record_schema():
+    return _load_schema("record.schema.json")
+
+
+@pytest.fixture
 def valid_device():
     return {
         "device_id": "dev_01H8XYZ",

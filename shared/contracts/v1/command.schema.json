@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://familysafety.local/contracts/v1/command.schema.json",
+  "title": "Family Safety Command Contract v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["command_id", "device_id", "command_type", "status", "issued_at", "expires_at", "nonce", "signature"],
+  "properties": {
+    "command_id": { "type": "string", "minLength": 8 },
+    "device_id": { "type": "string", "minLength": 4 },
+    "command_type": {
+      "type": "string",
+      "enum": ["GET_CURRENT_LOCATION", "ENABLE_LOCATION", "START_ROUTE", "STOP_ROUTE", "SYNC_NOW", "GET_STATUS", "GET_DEVICE_INFO"]
+    },
+    "status": {
+      "type": "string",
+      "enum": ["CREATED", "SIGNED", "QUEUED", "SENT", "DELIVERED", "RECEIVED", "VALIDATED", "EXECUTING", "SUCCESS", "FAILED", "TIMEOUT", "EXPIRED", "REJECTED", "OFFLINE"]
+    },
+    "issued_at": { "type": "string", "format": "date-time" },
+    "expires_at": { "type": "string", "format": "date-time" },
+    "nonce": { "type": "string", "minLength": 16 },
+    "signature": { "type": "string", "minLength": 16 },
+    "result": { "type": ["object", "null"] },
+    "error_code": { "type": ["string", "null"] }
+  }
+}

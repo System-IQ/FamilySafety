@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://familysafety.local/contracts/v1/route.schema.json",
+  "title": "Family Safety Route Contract v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["route_id", "device_id", "status", "started_at"],
+  "properties": {
+    "route_id": { "type": "string", "minLength": 8 },
+    "device_id": { "type": "string", "minLength": 4 },
+    "status": { "type": "string", "enum": ["recording", "completed", "aborted", "incomplete"] },
+    "started_at": { "type": "string", "format": "date-time" },
+    "ended_at": { "type": ["string", "null"], "format": "date-time" },
+    "distance_meters": { "type": ["number", "null"], "minimum": 0 },
+    "duration_seconds": { "type": ["integer", "null"], "minimum": 0 },
+    "raw_point_count": { "type": ["integer", "null"], "minimum": 0 },
+    "cleaned_point_count": { "type": ["integer", "null"], "minimum": 0 },
+    "integrity_score": { "type": ["number", "null"], "minimum": 0, "maximum": 100 }
+  }
+}
