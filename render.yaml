@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: familysafety-api
+    runtime: python
+    plan: free
+    region: frankfurt
+    branch: main
+    autoDeploy: true
+    buildCommand: pip install --upgrade pip && pip install -r requirements-prod.txt
+    startCommand: uvicorn backend.api.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: FS_ENV
+        value: production
+      - key: FS_LOG_LEVEL
+        value: INFO
+      - key: FS_JWT_SECRET
+        generateValue: true
+      - key: PYTHON_VERSION
+        value: 3.12.0
+      - key: DATABASE_URL
+        fromDatabase:
+          name: familysafety-db
+          property: connectionString
+
+databases:
+  - name: familysafety-db
+    plan: free
+    databaseName: familysafety
+    user: fs_user
+    region: frankfurt

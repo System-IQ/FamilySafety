@@ -1,31 +1,46 @@
-"""Real health endpoint — checks actual DB connectivity."""
-import sqlite3
+"""Deep health check — DB ping + latency + backend type.
+
+Backward compatible with the original shape:
+    {"status", "environment", "uptime_seconds",
+     "checks": {"database": {"ok": bool, "error": str|null}}}
+
+Also enriched with:
+    checks.database.backend     "sqlite" | "postgresql"
+    checks.database.latency_ms  float
+
+Returns 200 when healthy, 503 when DB is unreachable.
+Works with Render's healthCheckPath.
+"""
 import time
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Response, status
 
 from ..config import settings
+from ..db import db_backend, ping
 
 router = APIRouter(tags=["health"])
 _STARTED_AT = time.time()
 
 
 @router.get("/health")
-def health() -> dict:
-    db_ok = False
-    db_error: str | None = None
-    try:
-        with sqlite3.connect(settings.db_path) as conn:
-            conn.execute("SELECT 1").fetchone()
-        db_ok = True
-    except Exception as exc:
-        db_error = str(exc)
+def health(response: Response) -> dict:
+    ok, err, latency_ms = ping()
 
-    return {
-        "status": "ok" if db_ok else "degraded",
+    body = {
+        "status": "ok" if ok else "degraded",
         "environment": settings.environment,
         "uptime_seconds": round(time.time() - _STARTED_AT, 3),
         "checks": {
-            "database": {"ok": db_ok, "error": db_error},
+            "database": {
+                "ok": ok,
+                "error": err,
+                "backend": db_backend(),
+                "latency_ms": latency_ms,
+            }
         },
     }
+
+    if not ok:
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+
+    return body

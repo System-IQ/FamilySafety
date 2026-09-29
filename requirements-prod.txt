@@ -1,0 +1,12 @@
+# Runtime
+fastapi==0.141.1
+uvicorn==0.54.0
+pydantic==2.13.5
+pyjwt==2.10.1
+
+# Contracts
+jsonschema==4.17.3
+rfc3339-validator==0.1.4
+
+# Production database
+psycopg2-binary==2.9.10
