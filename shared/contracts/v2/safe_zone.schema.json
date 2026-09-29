@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://familysafety.local/contracts/v2/safe_zone.schema.json",
+  "title": "Family Safety Safe Zone Contract v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "zone_id",
+    "device_id",
+    "name",
+    "center",
+    "radius_meters",
+    "enabled",
+    "created_at"
+  ],
+  "properties": {
+    "zone_id": { "type": "string", "minLength": 8 },
+    "device_id": { "type": "string", "minLength": 4 },
+    "name": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "center": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["latitude", "longitude"],
+      "properties": {
+        "latitude": { "type": "number", "minimum": -90, "maximum": 90 },
+        "longitude": { "type": "number", "minimum": -180, "maximum": 180 }
+      }
+    },
+    "radius_meters": { "type": "number", "minimum": 10, "maximum": 50000 },
+    "enabled": { "type": "boolean" },
+    "schedule": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["days", "start_time", "end_time"],
+      "properties": {
+        "days": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+          }
+        },
+        "start_time": { "type": "string", "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$" },
+        "end_time":   { "type": "string", "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$" }
+      }
+    },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": ["string", "null"], "format": "date-time" }
+  }
+}

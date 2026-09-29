@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://familysafety.local/contracts/v2/algorithm.schema.json",
+  "title": "Family Safety Algorithm Registry Entry v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "algorithm_id",
+    "name",
+    "version",
+    "input_schema_ref",
+    "output_schema_ref",
+    "status",
+    "test_status",
+    "created_at"
+  ],
+  "properties": {
+    "algorithm_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{2,63}$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 128
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "description": {
+      "type": ["string", "null"],
+      "maxLength": 1024
+    },
+    "input_schema_ref": {
+      "type": "string",
+      "minLength": 3
+    },
+    "output_schema_ref": {
+      "type": "string",
+      "minLength": 3
+    },
+    "status": {
+      "type": "string",
+      "enum": ["candidate", "testing", "canary", "production", "deprecated", "blocked"]
+    },
+    "test_status": {
+      "type": "string",
+      "enum": ["unknown", "partial", "passing", "failing"]
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": ["string", "null"],
+      "format": "date-time"
+    },
+    "deprecation_reason": {
+      "type": ["string", "null"]
+    },
+    "superseded_by": {
+      "type": ["string", "null"]
+    }
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://familysafety.local/contracts/v2/alert.schema.json",
+  "title": "Family Safety Alert Contract v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "alert_id",
+    "device_id",
+    "alert_type",
+    "severity",
+    "triggered_at",
+    "state"
+  ],
+  "properties": {
+    "alert_id": { "type": "string", "minLength": 8 },
+    "device_id": { "type": "string", "minLength": 4 },
+    "alert_type": {
+      "type": "string",
+      "enum": [
+        "sos",
+        "low_battery",
+        "critical_battery",
+        "device_offline",
+        "geofence_exit",
+        "geofence_enter",
+        "speed_exceeded",
+        "route_anomaly",
+        "unexpected_stop",
+        "permission_revoked",
+        "gps_unavailable"
+      ]
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["info", "warning", "critical"]
+    },
+    "triggered_at": { "type": "string", "format": "date-time" },
+    "state": {
+      "type": "string",
+      "enum": ["new", "acknowledged", "resolved", "dismissed", "expired"]
+    },
+    "last_location": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["latitude", "longitude", "timestamp"],
+      "properties": {
+        "latitude": { "type": "number", "minimum": -90, "maximum": 90 },
+        "longitude": { "type": "number", "minimum": -180, "maximum": 180 },
+        "accuracy_meters": { "type": ["number", "null"], "minimum": 0 },
+        "timestamp": { "type": "string", "format": "date-time" }
+      }
+    },
+    "battery_level_percent": { "type": ["integer", "null"], "minimum": 0, "maximum": 100 },
+    "note": { "type": ["string", "null"], "maxLength": 512 },
+    "acknowledged_by": { "type": ["string", "null"] },
+    "acknowledged_at": { "type": ["string", "null"], "format": "date-time" },
+    "resolved_at": { "type": ["string", "null"], "format": "date-time" },
+    "provenance": {
+      "type": ["object", "null"],
+      "additionalProperties": true
+    }
+  }
+}
