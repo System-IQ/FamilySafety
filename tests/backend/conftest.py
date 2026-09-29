@@ -1,6 +1,6 @@
 """Backend test fixtures — isolated temp SQLite per test session.
 
-Keeps all PHASE 2 fixtures + auth + audit/events + zones.
+Keeps all PHASE 2 fixtures + auth/audit/events/zones/alerts/algorithms.
 """
 import os
 import tempfile
@@ -23,9 +23,11 @@ from backend.db import get_conn  # noqa: E402
 def _clean_db():
     """Wipe all tables before each test (FK-safe order).
 
-    Order matters because some tables have FKs to users/devices.
+    Reminder: any new table MUST be added here.
     """
     with get_conn() as conn:
+        # A5
+        conn.execute("DELETE FROM algorithms")
         # A4
         conn.execute("DELETE FROM alerts")
         # A3
@@ -48,7 +50,7 @@ def client():
         yield c
 
 
-# ---------------- PHASE 2 fixtures ----------------
+# ---------------- PHASE 2 ----------------
 
 @pytest.fixture
 def valid_device_payload():
@@ -76,7 +78,7 @@ def valid_device_payload():
     }
 
 
-# ---------------- A1 fixtures ----------------
+# ---------------- A1 ----------------
 
 @pytest.fixture
 def registered_user(client):

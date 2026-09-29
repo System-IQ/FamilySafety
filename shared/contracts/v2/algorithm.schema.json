@@ -29,7 +29,10 @@
       "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
     },
     "description": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "maxLength": 1024
     },
     "input_schema_ref": {
@@ -42,25 +45,53 @@
     },
     "status": {
       "type": "string",
-      "enum": ["candidate", "testing", "canary", "production", "deprecated", "blocked"]
+      "enum": [
+        "candidate",
+        "testing",
+        "canary",
+        "production",
+        "deprecated",
+        "blocked"
+      ]
     },
     "test_status": {
       "type": "string",
-      "enum": ["unknown", "partial", "passing", "failing"]
+      "enum": [
+        "unknown",
+        "partial",
+        "passing",
+        "failing"
+      ]
     },
     "created_at": {
       "type": "string",
       "format": "date-time"
     },
     "updated_at": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "format": "date-time"
     },
     "deprecation_reason": {
-      "type": ["string", "null"]
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "superseded_by": {
-      "type": ["string", "null"]
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "deprecated_at": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
     }
   }
 }

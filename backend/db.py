@@ -148,6 +148,33 @@ CREATE INDEX IF NOT EXISTS idx_alerts_type_ts
     ON alerts(alert_type, triggered_at DESC);
 CREATE INDEX IF NOT EXISTS idx_alerts_severity_state
     ON alerts(severity, state);
+
+-- A5: Algorithms Registry
+CREATE TABLE IF NOT EXISTS algorithms (
+    algorithm_id            TEXT NOT NULL,
+    version                 TEXT NOT NULL,
+    name                    TEXT NOT NULL,
+    description             TEXT,
+    input_schema_ref        TEXT NOT NULL,
+    output_schema_ref       TEXT NOT NULL,
+    status                  TEXT NOT NULL DEFAULT 'candidate',
+    test_status             TEXT NOT NULL DEFAULT 'unknown',
+    created_at              TEXT NOT NULL,
+    updated_at              TEXT,
+    deprecated_at           TEXT,
+    deprecation_reason      TEXT,
+    superseded_by           TEXT,
+    created_by              TEXT,
+    metadata_json           TEXT NOT NULL DEFAULT '{}',
+    PRIMARY KEY (algorithm_id, version),
+    FOREIGN KEY (created_by) REFERENCES users(user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_algorithms_status
+    ON algorithms(status);
+CREATE INDEX IF NOT EXISTS idx_algorithms_algorithm
+    ON algorithms(algorithm_id);
+CREATE INDEX IF NOT EXISTS idx_algorithms_production
+    ON algorithms(algorithm_id, status);
 """
 
 
