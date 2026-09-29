@@ -30,48 +30,58 @@ jobs:
 
       - name: Export NDK env
         run: |
-          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/26.1.10909125" >> $GITHUB_ENV
-          echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/26.1.10909125" >> $GITHUB_ENV
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/26.1.10909125" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/26.1.10909125" >> "$GITHUB_ENV"
 
-      - name: Setup Go 1.23.1
+      - name: Setup Go 1.27.1
         uses: actions/setup-go@v5
         with:
-          go-version: '1.23.1'
+          go-version: '1.27.1'
 
-      - name: Enable toolchain auto
-        run: go env -w GOTOOLCHAIN=auto
+      - name: Enable Go toolchain and JSON compatibility
+        run: |
+          go env -w GOTOOLCHAIN=auto
+          echo "GOEXPERIMENT=nojsonv2" >> "$GITHUB_ENV"
 
       - name: Show Go version
-        run: go version
+        run: |
+          go version
+          go env GOEXPERIMENT
 
-      - name: Install gomobile + gobind (Pinned)
+      - name: Install gomobile + gobind
         run: |
           go install golang.org/x/mobile/cmd/gomobile@v0.0.0-20241004191011-08a83c5af9f8
           go install golang.org/x/mobile/cmd/gobind@v0.0.0-20241004191011-08a83c5af9f8
-          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: gomobile init
         run: gomobile init
 
-      - name: Verify gomobile version
-        run: gomobile version
-
-      - name: Fetch deps (No @latest)
+      - name: Verify dependencies
         working-directory: admin/tsnet-bridge
         run: |
           set -e
-          go get tailscale.com@v1.76.0
-          go get golang.org/x/mobile@v0.0.0-20241004191011-08a83c5af9f8
-          go mod tidy
+          go mod download
+          go mod verify
+
           echo "=== final go.mod ==="
           cat go.mod
-          grep "golang.org/x/mobile" go.mod || (echo "::error::x/mobile missing" && exit 1)
+
+          echo "=== Tailscale ==="
+          go list -m tailscale.com
+
+          echo "=== Test ==="
+          go test ./...
 
       - name: Build AAR
         working-directory: admin/tsnet-bridge
         run: |
           set -e
-          gomobile bind -target=android/arm64 -androidapi 24 -o tsnetbridge.aar .
+          gomobile bind \
+            -target=android/arm64 \
+            -androidapi 24 \
+            -o tsnetbridge.aar \
+            .
           ls -lh tsnetbridge.aar
 
       - name: Upload AAR
@@ -79,4 +89,5 @@ jobs:
         with:
           name: tsnetbridge-aar
           path: admin/tsnet-bridge/tsnetbridge.aar
+          retention-days: 30
           if-no-files-found: error
