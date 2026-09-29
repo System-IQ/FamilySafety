@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -35,7 +36,10 @@ import com.admin.family.ui.theme.Warning
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ControlRoomScreen(vm: ControlRoomViewModel) {
+fun ControlRoomScreen(
+    vm: ControlRoomViewModel,
+    onOpenSettings: () -> Unit,
+) {
     val state by vm.state.collectAsStateWithLifecycle()
 
     Scaffold(
@@ -45,6 +49,9 @@ fun ControlRoomScreen(vm: ControlRoomViewModel) {
                 actions = {
                     IconButton(onClick = vm::refresh) {
                         Icon(Icons.Filled.Refresh, contentDescription = "Refresh")
+                    }
+                    IconButton(onClick = onOpenSettings) {
+                        Icon(Icons.Filled.Settings, contentDescription = "Settings")
                     }
                 },
             )
@@ -124,8 +131,8 @@ private fun DeviceCard(device: DeviceDto) {
                 Spacer(Modifier.width(8.dp))
                 Text("(${device.connectionState})", color = statusColor)
             }
-            Text("Battery: ${device.battery.levelPercent}%" +
-                    if (device.battery.charging) " (charging)" else "")
+            Text("Battery: ${device.battery.levelPercent}% " +
+                    if (device.battery.charging) "(charging)" else "")
             Text("Last seen: ${device.lastSeen}")
             Text("Management: ${device.managementState}")
             Text("Android ${device.androidVersion} • app ${device.appVersion}")
