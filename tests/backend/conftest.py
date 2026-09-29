@@ -1,6 +1,6 @@
 """Backend test fixtures — isolated temp SQLite per test session.
 
-Keeps all PHASE 2 fixtures + adds auth-related ones.
+Keeps all PHASE 2 fixtures + adds auth and audit/events fixtures.
 """
 import os
 import tempfile
@@ -23,6 +23,8 @@ from backend.db import get_conn  # noqa: E402
 def _clean_db():
     """Wipe all tables before each test (FK-safe order)."""
     with get_conn() as conn:
+        conn.execute("DELETE FROM audit_events")
+        conn.execute("DELETE FROM events")
         conn.execute("DELETE FROM refresh_tokens")
         conn.execute("DELETE FROM users")
         conn.execute("DELETE FROM devices")
@@ -77,3 +79,25 @@ def registered_user(client):
     })
     assert r.status_code == 201, r.text
     return {"email": email, "password": password, "user": r.json()}
+
+
+@pytest.fixture
+def auth_headers(client, registered_user):
+    """Login as the registered user, return Authorization header dict."""
+    r = client.post("/auth/login", json={
+        "email": registered_user["email"],
+        "password": registered_user["password"],
+    })
+    assert r.status_code == 200, r.text
+    return {"Authorization": f"Bearer {r.json()['access_token']}"}
+
+
+@pytest.fixture
+def auth_tokens(client, registered_user):
+    """Return full token pair (access + refresh)."""
+    r = client.post("/auth/login", json={
+        "email": registered_user["email"],
+        "password": registered_user["password"],
+    })
+    assert r.status_code == 200, r.text
+    return r.json()

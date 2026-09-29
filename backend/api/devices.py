@@ -1,7 +1,10 @@
-"""Device endpoints — Pydantic + JSON Schema double validation."""
-from fastapi import APIRouter, HTTPException, status
+"""Device endpoints — double validation + audit on writes."""
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from jsonschema import ValidationError as JsonSchemaError
 
+from ..audit_repo import record as audit_record
+from ..auth.dependencies import get_current_user
+from ..observability import request_meta
 from ..schemas import DeviceIn
 from ..storage import get_device, list_devices, upsert_device
 from ..validators import validate_contract
@@ -10,10 +13,11 @@ router = APIRouter(prefix="/devices", tags=["devices"])
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
-def create_or_update_device(device: DeviceIn) -> dict:
-    # Layer 1 already passed (Pydantic via FastAPI).
-
-    # Layer 2: contract validation
+def create_or_update_device(
+    device: DeviceIn,
+    request: Request,
+    current: dict = Depends(get_current_user),
+) -> dict:
     serialized = device.model_dump(mode="json")
     try:
         validate_contract("device.schema.json", serialized)
@@ -27,12 +31,25 @@ def create_or_update_device(device: DeviceIn) -> dict:
             },
         )
 
+    existed = get_device(serialized["device_id"]) is not None
     upsert_device(serialized)
+
+    audit_record(
+        action="device.update" if existed else "device.create",
+        resource_type="device",
+        result="success",
+        actor_user_id=current["user_id"],
+        resource_id=serialized["device_id"],
+        **request_meta(request),
+    )
     return serialized
 
 
 @router.get("/{device_id}")
-def read_device(device_id: str) -> dict:
+def read_device(
+    device_id: str,
+    current: dict = Depends(get_current_user),
+) -> dict:
     d = get_device(device_id)
     if d is None:
         raise HTTPException(status_code=404, detail="device not found")
@@ -40,5 +57,5 @@ def read_device(device_id: str) -> dict:
 
 
 @router.get("")
-def list_all() -> dict:
+def list_all(current: dict = Depends(get_current_user)) -> dict:
     return {"devices": list_devices()}

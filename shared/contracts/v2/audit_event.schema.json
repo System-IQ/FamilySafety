@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://familysafety.local/contracts/v2/audit_event.schema.json",
+  "title": "Family Safety Audit Event Contract v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "audit_id",
+    "actor_user_id",
+    "action",
+    "resource_type",
+    "result",
+    "timestamp"
+  ],
+  "properties": {
+    "audit_id": { "type": "string", "minLength": 8 },
+    "actor_user_id": { "type": ["string", "null"], "minLength": 4 },
+    "action": {
+      "type": "string",
+      "enum": [
+        "user.register",
+        "user.login",
+        "user.login_failed",
+        "user.refresh",
+        "user.refresh_failed",
+        "user.logout",
+        "device.create",
+        "device.update",
+        "device.delete",
+        "alert.create",
+        "alert.acknowledge",
+        "alert.resolve",
+        "safe_zone.create",
+        "safe_zone.update",
+        "safe_zone.delete",
+        "algorithm.register",
+        "algorithm.promote",
+        "algorithm.deprecate",
+        "derived.create",
+        "command.issue",
+        "command.cancel"
+      ]
+    },
+    "resource_type": {
+      "type": "string",
+      "enum": ["user", "device", "alert", "safe_zone", "algorithm", "derived", "command", "system"]
+    },
+    "resource_id": { "type": ["string", "null"], "minLength": 1 },
+    "result": {
+      "type": "string",
+      "enum": ["success", "failure", "denied"]
+    },
+    "reason": { "type": ["string", "null"], "maxLength": 512 },
+    "ip_address": { "type": ["string", "null"], "maxLength": 64 },
+    "user_agent": { "type": ["string", "null"], "maxLength": 512 },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "metadata": {
+      "type": ["object", "null"],
+      "additionalProperties": true
+    }
+  }
+}

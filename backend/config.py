@@ -54,12 +54,22 @@ class Settings:
         self.db_path: Path = Path(
             os.getenv("FS_DB_PATH", str(_REPO_ROOT / "data" / "familysafety.db"))
         )
-        self.contracts_dir: Path = Path(
+        # Contracts — v1 (raw) and v2 (derived/events/alerts/...)
+        self.contracts_v1_dir: Path = Path(
             os.getenv(
-                "FS_CONTRACTS_DIR",
+                "FS_CONTRACTS_V1_DIR",
                 str(_REPO_ROOT / "shared" / "contracts" / "v1"),
             )
         )
+        self.contracts_v2_dir: Path = Path(
+            os.getenv(
+                "FS_CONTRACTS_V2_DIR",
+                str(_REPO_ROOT / "shared" / "contracts" / "v2"),
+            )
+        )
+        # Backwards-compatible alias (points to v1)
+        self.contracts_dir: Path = self.contracts_v1_dir
+        # Auth
         self.jwt_secret: str = load_jwt_secret()
         self.access_token_minutes: int = int(os.getenv("FS_ACCESS_MIN", "15"))
         self.refresh_token_days: int = int(os.getenv("FS_REFRESH_DAYS", "30"))

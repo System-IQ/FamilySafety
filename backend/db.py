@@ -10,7 +10,7 @@ from .config import settings
 
 _SCHEMA = """
 -- ============================================
--- Existing (PHASE 2)
+-- PHASE 2: Devices
 -- ============================================
 CREATE TABLE IF NOT EXISTS devices (
     device_id   TEXT PRIMARY KEY,
@@ -48,6 +48,50 @@ CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user
     ON refresh_tokens(user_id);
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_revoked
     ON refresh_tokens(revoked);
+
+-- ============================================
+-- A2: Events (domain timeline)
+-- ============================================
+CREATE TABLE IF NOT EXISTS events (
+    event_id        TEXT PRIMARY KEY,
+    device_id       TEXT NOT NULL,
+    event_type      TEXT NOT NULL,
+    severity        TEXT NOT NULL,
+    timestamp       TEXT NOT NULL,
+    payload_json    TEXT NOT NULL DEFAULT '{}',
+    correlation_id  TEXT,
+    created_at      TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_events_device_ts
+    ON events(device_id, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_events_type_ts
+    ON events(event_type, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_events_correlation
+    ON events(correlation_id);
+
+-- ============================================
+-- A2: Audit (admin actions)
+-- ============================================
+CREATE TABLE IF NOT EXISTS audit_events (
+    audit_id        TEXT PRIMARY KEY,
+    actor_user_id   TEXT,
+    action          TEXT NOT NULL,
+    resource_type   TEXT NOT NULL,
+    resource_id     TEXT,
+    result          TEXT NOT NULL,
+    reason          TEXT,
+    ip_address      TEXT,
+    user_agent      TEXT,
+    timestamp       TEXT NOT NULL,
+    metadata_json   TEXT NOT NULL DEFAULT '{}',
+    FOREIGN KEY (actor_user_id) REFERENCES users(user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_audit_actor_ts
+    ON audit_events(actor_user_id, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_action_ts
+    ON audit_events(action, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_resource
+    ON audit_events(resource_type, resource_id);
 """
 
 
