@@ -17,6 +17,9 @@ import com.admin.family.ui.controlroom.ControlRoomViewModelFactory
 import com.admin.family.ui.server.ServerControlScreen
 import com.admin.family.ui.server.ServerControlViewModel
 import com.admin.family.ui.server.ServerControlViewModelFactory
+import com.admin.family.ui.server.ServerDashboardScreen
+import com.admin.family.ui.server.ServerDashboardViewModel
+import com.admin.family.ui.server.ServerDashboardViewModelFactory
 import com.admin.family.ui.settings.SettingsScreen
 import com.admin.family.ui.settings.SettingsViewModel
 import com.admin.family.ui.settings.SettingsViewModelFactory
@@ -24,7 +27,8 @@ import com.admin.family.ui.settings.SettingsViewModelFactory
 object Routes {
     const val CONTROL_ROOM = "control_room"
     const val SETTINGS = "settings"
-    const val SERVER = "server"
+    const val SERVER_DASHBOARD = "server_dashboard"
+    const val SERVER_CONTROL = "server_control"
 }
 
 @Composable
@@ -44,7 +48,7 @@ fun AppNavigation(
             ControlRoomScreen(
                 vm = vm,
                 onOpenSettings = { navController.navigate(Routes.SETTINGS) },
-                onOpenServer = { navController.navigate(Routes.SERVER) },
+                onOpenServer = { navController.navigate(Routes.SERVER_DASHBOARD) },
             )
         }
         composable(Routes.SETTINGS) {
@@ -53,7 +57,17 @@ fun AppNavigation(
             )
             SettingsScreen(viewModel = vm, onBack = { navController.popBackStack() })
         }
-        composable(Routes.SERVER) {
+        composable(Routes.SERVER_DASHBOARD) {
+            val vm: ServerDashboardViewModel = viewModel(
+                factory = ServerDashboardViewModelFactory(apiClient),
+            )
+            ServerDashboardScreen(
+                vm = vm,
+                onBack = { navController.popBackStack() },
+                onOpenControl = { navController.navigate(Routes.SERVER_CONTROL) },
+            )
+        }
+        composable(Routes.SERVER_CONTROL) {
             val vm: ServerControlViewModel = viewModel(
                 factory = ServerControlViewModelFactory(tsnetWrapper, authKeyStore),
             )

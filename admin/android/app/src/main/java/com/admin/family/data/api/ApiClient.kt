@@ -3,6 +3,7 @@ package com.admin.family.data.api
 import com.admin.family.data.api.dto.DeviceDto
 import com.admin.family.data.api.dto.DeviceListResponse
 import com.admin.family.data.api.dto.HealthDto
+import com.admin.family.data.api.dto.SystemMetrics
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -81,6 +82,15 @@ class ApiClient(initialBaseUrl: String) {
             if (!resp.isSuccessful) error("HTTP ${resp.code}")
             val body = resp.body?.string() ?: error("empty body")
             json.decodeFromString(DeviceDto.serializer(), body)
+        }
+    }
+
+    suspend fun systemMetrics(): SystemMetrics = withContext(Dispatchers.IO) {
+        val req = Request.Builder().url(url("metrics")).get().build()
+        http.newCall(req).execute().use { resp ->
+            if (!resp.isSuccessful) error("HTTP ${resp.code}")
+            val body = resp.body?.string() ?: error("empty body")
+            json.decodeFromString(SystemMetrics.serializer(), body)
         }
     }
 

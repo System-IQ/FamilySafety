@@ -19,6 +19,7 @@ from .derived import router as derived_router
 from .devices import router as devices_router
 from .events import router as events_router
 from .health import router as health_router
+from .system import router as system_router
 from .version import router as version_router
 from .zones import router as zones_router
 
@@ -38,6 +39,7 @@ def create_app() -> FastAPI:
     log_banner()
 
     app.include_router(health_router)
+    app.include_router(system_router)
     app.include_router(version_router)
     app.include_router(auth_router)
     app.include_router(devices_router)

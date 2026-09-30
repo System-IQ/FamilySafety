@@ -1,6 +1,7 @@
 """Request metadata helper + structured logging middleware.
 
-Middleware logs every request as a single JSON line to stdout.
+Middleware logs every request as a single JSON line to stdout
+AND records it in the system_metrics request counter.
 This is observability — NOT audit. Audit is business-level and lives
 in backend.audit_repo (explicit calls in endpoints).
 """
@@ -12,6 +13,8 @@ from typing import Any
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
+
+from . import system_metrics
 
 logger = logging.getLogger("familysafety.http")
 logger.setLevel(logging.INFO)
@@ -32,7 +35,7 @@ def request_meta(request: Request) -> dict[str, Any]:
 
 
 class RequestLogMiddleware(BaseHTTPMiddleware):
-    """Log each request as one JSON line. Never logs bodies or headers."""
+    """Log each request as one JSON line. Record into metrics counter."""
 
     async def dispatch(self, request: Request, call_next) -> Response:
         start = time.perf_counter()
@@ -49,3 +52,7 @@ class RequestLogMiddleware(BaseHTTPMiddleware):
                 "status": status_code,
                 "duration_ms": duration_ms,
             }))
+            try:
+                system_metrics.record_request(status_code)
+            except Exception:
+                pass
