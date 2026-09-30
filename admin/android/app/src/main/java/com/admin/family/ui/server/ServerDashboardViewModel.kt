@@ -103,6 +103,16 @@ class ServerDashboardViewModel(
         }
     }
 
+    fun onScreenVisible() {
+        if (_ui.value.autoRefresh) {
+            startPolling()
+        }
+    }
+
+    fun onScreenHidden() {
+        stopPolling()
+    }
+
     override fun onCleared() {
         super.onCleared()
         stopPolling()
