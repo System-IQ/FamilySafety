@@ -78,16 +78,23 @@ class ServerDashboardViewModel(
                 is DashboardState.Failed -> prev.consecutiveFails + 1
                 else -> 1
             }
-            // Keep showing old metrics if we had them
-            if (prev is DashboardState.Ready && fails < 3) {
+            // 2 attempts grace (server may be restarting), then explicit Failed
+            if (prev is DashboardState.Ready && fails < 2) {
                 _ui.update {
                     it.copy(state = prev.copy(consecutiveFails = fails))
                 }
             } else {
+                val msg = when {
+                    t is java.net.SocketTimeoutException -> "Server not responding (timeout)"
+                    t is java.net.ConnectException -> "Server appears to be stopped"
+                    t is java.net.UnknownHostException -> "Server unreachable"
+                    t.message?.contains("HTTP 502") == true -> "Server gateway error"
+                    else -> t.message ?: "Connection failed"
+                }
                 _ui.update {
                     it.copy(
                         state = DashboardState.Failed(
-                            message = t.message ?: "Connection failed",
+                            message = msg,
                             lastUpdateMillis = now,
                         )
                     )

@@ -36,6 +36,12 @@ class ApiClient(initialBaseUrl: String) {
         .readTimeout(20, TimeUnit.SECONDS)
         .build()
 
+    // Fast client for dashboard polling — fails quickly if server is down
+    private val fastHttp: OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(2, TimeUnit.SECONDS)
+        .readTimeout(3, TimeUnit.SECONDS)
+        .build()
+
     private val jsonMedia = "application/json; charset=utf-8".toMediaType()
 
     val baseUrl: String
@@ -87,7 +93,7 @@ class ApiClient(initialBaseUrl: String) {
 
     suspend fun systemMetrics(): SystemMetrics = withContext(Dispatchers.IO) {
         val req = Request.Builder().url(url("metrics")).get().build()
-        http.newCall(req).execute().use { resp ->
+        fastHttp.newCall(req).execute().use { resp ->
             if (!resp.isSuccessful) error("HTTP ${resp.code}")
             val body = resp.body?.string() ?: error("empty body")
             json.decodeFromString(SystemMetrics.serializer(), body)
