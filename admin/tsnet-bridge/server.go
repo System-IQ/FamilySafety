@@ -37,19 +37,23 @@ func NewServer(stateDir, hostname, authKey string) *Server {
 func (s *Server) Status() string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+
 	return s.status
 }
 
 func (s *Server) IsRunning() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+
 	return s.running && s.ts != nil
 }
 
-// installAndroidNetworkIntegration configures Tailscale's Android-safe
-// interface enumeration and supplies the active Android network interface
-// as the default route interface. Android blocks the normal Linux netlink
-// route/interface paths used by Tailscale.
+// installAndroidNetworkIntegration provides Tailscale with Android-safe
+// interface discovery through anet instead of Linux netlink.
+//
+// Android restricts the normal Linux netlink route/interface paths.
+// We therefore enumerate interfaces and addresses using anet, then
+// register the result with Tailscale's netmon package.
 func installAndroidNetworkIntegration() error {
 	ifs, err := anet.Interfaces()
 	if err != nil {
@@ -74,13 +78,19 @@ func installAndroidNetworkIntegration() error {
 			AltAddrs:  addrs,
 		})
 
-		// Select the first active non-loopback interface that has
-		// an IPv4 address. On the test device this is wlan0.
+		// Automatically choose the first active, non-loopback
+		// interface that has an IPv4 address.
 		if defaultInterface == "" &&
 			ifs[i].Flags&net.FlagUp != 0 &&
 			ifs[i].Flags&net.FlagLoopback == 0 {
+
 			for _, addr := range addrs {
-				if ip, _, err := net.ParseCIDR(addr.String()); err == nil && ip.To4() != nil {
+				ip, _, parseErr := net.ParseCIDR(addr.String())
+				if parseErr != nil {
+					continue
+				}
+
+				if ip.To4() != nil {
 					defaultInterface = ifs[i].Name
 					break
 				}
@@ -99,6 +109,18 @@ func installAndroidNetworkIntegration() error {
 	return nil
 }
 
+// Start initializes and starts the embedded Tailscale node.
+//
+// Startup order is deliberately strict:
+//
+//  1. Validate state directory.
+//  2. Create private state directory.
+//  3. Create and verify dedicated log directory.
+//  4. Configure TS_LOGS_DIR.
+//  5. Install Android network integration.
+//  6. Construct tsnet.Server.
+//  7. Call ts.Up() with a bounded timeout.
+//  8. Publish running state only after successful Up().
 func (s *Server) Start() (err error) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -107,43 +129,110 @@ func (s *Server) Start() (err error) {
 		}
 	}()
 
+	// ------------------------------------------------------------
+	// 0. Prevent duplicate starts.
+	// ------------------------------------------------------------
 	s.mu.Lock()
+
 	if s.running && s.ts != nil {
 		s.mu.Unlock()
 		return nil
 	}
+
 	s.status = "starting"
 	s.mu.Unlock()
 
+	// ------------------------------------------------------------
+	// 1. Validate state directory.
+	// ------------------------------------------------------------
+	if s.stateDir == "" {
+		err := fmt.Errorf("state directory is empty")
+		s.fail(err)
+		return err
+	}
+
+	// ------------------------------------------------------------
+	// 2. Create the private application state directory.
+	// ------------------------------------------------------------
 	if err := os.MkdirAll(s.stateDir, 0o700); err != nil {
 		s.fail(err)
 		return fmt.Errorf("create state directory: %w", err)
 	}
 
-	// Android blocks the normal Linux netlink route/interface paths.
-	// Configure the Android-safe interface provider and default route
-	// before creating/up-ing the tsnet server.
-	if err := installAndroidNetworkIntegration(); err != nil {
+	if err := os.Chmod(s.stateDir, 0o700); err != nil {
 		s.fail(err)
-		return fmt.Errorf("install Android network integration: %w", err)
+		return fmt.Errorf(
+			"set state directory permissions: %w",
+			err,
+		)
 	}
 
+	// ------------------------------------------------------------
+	// 3. Create and configure a dedicated Tailscale log directory.
+	//
+	// Result:
+	//
+	// stateDir/
+	// ├── tailscaled.state
+	// ├── tailscaled.log.conf
+	// └── logs/
+	//
+	// This prevents logpolicy from falling back to inaccessible
+	// Android filesystem locations.
+	// ------------------------------------------------------------
+	if _, err := configureTailscaleLogDir(s.stateDir); err != nil {
+		s.fail(err)
+		return fmt.Errorf(
+			"configure Tailscale log directory: %w",
+			err,
+		)
+	}
+
+	// ------------------------------------------------------------
+	// 4. Install Android-safe network integration.
+	// ------------------------------------------------------------
+	if err := installAndroidNetworkIntegration(); err != nil {
+		s.fail(err)
+		return fmt.Errorf(
+			"install Android network integration: %w",
+			err,
+		)
+	}
+
+	// ------------------------------------------------------------
+	// 5. Construct the embedded tsnet server.
+	// ------------------------------------------------------------
 	ts := &tsnet.Server{
 		Dir:      s.stateDir,
 		Hostname: s.hostname,
 		AuthKey:  s.authKey,
-		Logf:     func(format string, args ...any) {},
+
+		// Verbose backend logs are intentionally disabled at this
+		// bridge layer. Tailscale's persistent log configuration and
+		// buffer storage use TS_LOGS_DIR configured above.
+		Logf: func(format string, args ...any) {},
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	// ------------------------------------------------------------
+	// 6. Start Tailscale with a bounded startup timeout.
+	// ------------------------------------------------------------
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		90*time.Second,
+	)
 	defer cancel()
 
 	if _, err := ts.Up(ctx); err != nil {
 		_ = ts.Close()
+
 		s.fail(err)
+
 		return fmt.Errorf("tsnet start: %w", err)
 	}
 
+	// ------------------------------------------------------------
+	// 7. Publish the running state only after ts.Up succeeds.
+	// ------------------------------------------------------------
 	s.mu.Lock()
 	s.ts = ts
 	s.running = true
@@ -155,12 +244,15 @@ func (s *Server) Start() (err error) {
 
 func (s *Server) Stop() {
 	s.mu.Lock()
+
 	ts := s.ts
 	removeTunnel := s.removeTunnel
+
 	s.ts = nil
 	s.removeTunnel = nil
 	s.running = false
 	s.status = "stopping"
+
 	s.mu.Unlock()
 
 	if removeTunnel != nil {
@@ -178,8 +270,10 @@ func (s *Server) Stop() {
 
 func (s *Server) IP4() string {
 	s.mu.RLock()
+
 	ts := s.ts
 	running := s.running
+
 	s.mu.RUnlock()
 
 	if !running || ts == nil {
