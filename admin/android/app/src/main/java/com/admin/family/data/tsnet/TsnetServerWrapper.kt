@@ -8,82 +8,171 @@ import tsnetbridge.Server as GoServer
 import tsnetbridge.Tsnetbridge
 
 /**
- * Kotlin wrapper around the gomobile-generated tsnet API.
+ * Thread-safe Kotlin wrapper around the gomobile-generated tsnet API.
  *
- * ACTUAL gomobile method names (verified from classes.jar via JVM reflection):
- *   tsnetbridge.Tsnetbridge.newServer(stateDir, hostname, authKey) : Server
- *   Server.start()                   - throws on error
- *   Server.stop()
- *   Server.status()                  : String
- *   Server.isRunning()               : Boolean
- *   Server.iP4()                     : String  (NOTE: capital P!)
- *   Server.listenAndProxy(long, String) - Go int -> Java long
+ * Responsibilities:
+ * - Own exactly one Go tsnet server instance.
+ * - Prevent concurrent start/stop operations.
+ * - Start the tsnet server before exposing it as running.
+ * - Start the proxy only after the server is running.
+ * - Never report success when an operation actually failed.
  */
-class TsnetServerWrapper(private val context: Context) {
+class TsnetServerWrapper(
+    private val context: Context,
+) {
+
+    private val lock = Any()
 
     private var goServer: GoServer? = null
+    private var proxyStarted = false
 
     @Volatile
     var lastError: String? = null
         private set
 
-    fun isRunning(): Boolean = try {
-        goServer?.isRunning() ?: false
-    } catch (t: Throwable) {
-        Log.e(TAG, "isRunning failed", t)
-        false
+    fun isRunning(): Boolean = synchronized(lock) {
+        try {
+            goServer?.isRunning() ?: false
+        } catch (t: Throwable) {
+            Log.e(TAG, "isRunning failed", t)
+            false
+        }
     }
 
-    fun status(): String = try {
-        goServer?.status() ?: "stopped"
-    } catch (t: Throwable) {
-        Log.e(TAG, "status failed", t)
-        "error: ${t.message}"
+    fun status(): String = synchronized(lock) {
+        try {
+            goServer?.status() ?: "stopped"
+        } catch (t: Throwable) {
+            Log.e(TAG, "status failed", t)
+            "error: ${t.message}"
+        }
     }
 
-    fun ip4(): String = try {
-        // NOTE: gomobile exports "iP4" (capital P)
-        goServer?.iP4() ?: ""
-    } catch (t: Throwable) {
-        Log.e(TAG, "iP4 failed", t)
-        ""
+    fun ip4(): String = synchronized(lock) {
+        try {
+            // NOTE: gomobile exports "iP4" (capital P)
+            goServer?.iP4() ?: ""
+        } catch (t: Throwable) {
+            Log.e(TAG, "iP4 failed", t)
+            ""
+        }
     }
 
-    suspend fun start(authKey: String, hostname: String = "admin-phone"): Result<Unit> =
-        withContext(Dispatchers.IO) {
+    suspend fun start(
+        authKey: String,
+        hostname: String = "admin-phone",
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+
+        synchronized(lock) {
             try {
-                if (goServer == null) {
-                    val stateDir = context.filesDir.resolve("tsnet").absolutePath
-                    goServer = Tsnetbridge.newServer(stateDir, hostname, authKey)
+                val existing = goServer
+
+                if (existing != null) {
+                    if (existing.isRunning()) {
+                        lastError = null
+                        return@withContext Result.success(Unit)
+                    }
+
+                    // Do not reuse an old stopped Go server instance.
+                    goServer = null
+                    proxyStarted = false
                 }
-                goServer!!.start()
+
+                val stateDir = context.filesDir
+                    .resolve("tsnet")
+                    .absolutePath
+
+                val server = Tsnetbridge.newServer(
+                    stateDir,
+                    hostname,
+                    authKey,
+                )
+
+                goServer = server
+
+                server.start()
+
+                if (!server.isRunning()) {
+                    throw IllegalStateException(
+                        "tsnet server did not enter running state"
+                    )
+                }
+
                 lastError = null
                 Result.success(Unit)
+
             } catch (t: Throwable) {
                 lastError = t.message ?: "unknown error"
+
                 Log.e(TAG, "start failed", t)
+
+                try {
+                    goServer?.stop()
+                } catch (cleanupError: Throwable) {
+                    Log.e(TAG, "start cleanup failed", cleanupError)
+                }
+
+                goServer = null
+                proxyStarted = false
+
                 Result.failure(t)
             }
         }
+    }
 
-    suspend fun listenAndProxy(port: Int, target: String): Result<Unit> =
-        withContext(Dispatchers.IO) {
+    suspend fun listenAndProxy(
+        port: Int,
+        target: String,
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+
+        synchronized(lock) {
             try {
-                // gomobile widens Go int -> Java long
-                goServer?.listenAndProxy(port.toLong(), target)
+                val server = goServer
+                    ?: return@withContext Result.failure(
+                        IllegalStateException("tsnet server is not initialized")
+                    )
+
+                if (!server.isRunning()) {
+                    return@withContext Result.failure(
+                        IllegalStateException("tsnet server is not running")
+                    )
+                }
+
+                if (proxyStarted) {
+                    return@withContext Result.success(Unit)
+                }
+
+                // gomobile widens Go int -> Java long.
+                server.listenAndProxy(
+                    port.toLong(),
+                    target,
+                )
+
+                proxyStarted = true
+                lastError = null
+
                 Result.success(Unit)
+
             } catch (t: Throwable) {
                 lastError = t.message ?: "listen failed"
+
                 Log.e(TAG, "listenAndProxy failed", t)
+
                 Result.failure(t)
             }
         }
+    }
 
     fun stop() {
-        try {
-            goServer?.stop()
-        } catch (t: Throwable) {
-            Log.e(TAG, "stop failed", t)
+        synchronized(lock) {
+            try {
+                goServer?.stop()
+            } catch (t: Throwable) {
+                Log.e(TAG, "stop failed", t)
+            } finally {
+                goServer = null
+                proxyStarted = false
+            }
         }
     }
 

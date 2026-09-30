@@ -46,3 +46,6 @@ venv/
 # Don't ignore termux-server (it's our source)
 !admin/termux-server/
 !admin/termux-server/**
+
+# Android local SDK configuration
+**/local.properties
