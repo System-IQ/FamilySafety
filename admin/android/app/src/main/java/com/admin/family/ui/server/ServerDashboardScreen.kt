@@ -27,7 +27,10 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import com.admin.family.data.api.dto.SystemMetrics
 import com.admin.family.ui.theme.Danger
 import com.admin.family.ui.theme.Success
@@ -42,6 +45,18 @@ fun ServerDashboardScreen(
     onOpenControl: () -> Unit = {},
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    androidx.compose.runtime.LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            vm.onScreenVisible()
+            try {
+                kotlinx.coroutines.awaitCancellation()
+            } finally {
+                vm.onScreenHidden()
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
