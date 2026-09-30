@@ -42,11 +42,13 @@ jobs:
         run: |
           go env -w GOTOOLCHAIN=auto
           echo "GOEXPERIMENT=nojsonv2" >> "$GITHUB_ENV"
+          echo "GOFLAGS=-ldflags=-checklinkname=0" >> "$GITHUB_ENV"
 
       - name: Show Go version
         run: |
           go version
           go env GOEXPERIMENT
+          go env GOFLAGS
 
       - name: Install gomobile + gobind
         run: |
@@ -70,6 +72,9 @@ jobs:
           echo "=== Tailscale ==="
           go list -m tailscale.com
 
+          echo "=== anet ==="
+          go list -m github.com/wlynxg/anet
+
           echo "=== Test ==="
           go test ./...
 
@@ -77,11 +82,13 @@ jobs:
         working-directory: admin/tsnet-bridge
         run: |
           set -e
+
           gomobile bind \
             -target=android/arm64 \
             -androidapi 24 \
             -o tsnetbridge.aar \
             .
+
           ls -lh tsnetbridge.aar
 
       - name: Upload AAR

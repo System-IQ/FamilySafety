@@ -3,6 +3,7 @@ module github.com/System-IQ/FamilySafety/admin/tsnet-bridge
 go 1.25.1
 
 require (
+	github.com/wlynxg/anet v0.0.5
 	golang.org/x/mobile v0.0.0-20241004191011-08a83c5af9f8
 	tailscale.com v1.88.4
 )

@@ -7,33 +7,23 @@ import (
 	"sync"
 	"time"
 
+	"github.com/wlynxg/anet"
 	_ "golang.org/x/mobile/bind"
+	"tailscale.com/net/netmon"
 	"tailscale.com/tsnet"
 )
 
-// Server owns exactly one embedded tsnet.Server.
-//
-// Lifecycle:
-//
-//	idle -> starting -> running -> stopping -> stopped
-//
-// A failed operation never changes the state to running.
 type Server struct {
-	mu sync.RWMutex
-
-	stateDir string
-	hostname string
-	authKey  string
-
-	ts *tsnet.Server
-
+	mu           sync.RWMutex
+	stateDir     string
+	hostname     string
+	authKey      string
+	ts           *tsnet.Server
 	removeTunnel func()
-
-	running bool
-	status  string
+	running      bool
+	status       string
 }
 
-// NewServer creates an isolated embedded Tailscale node.
 func NewServer(stateDir, hostname, authKey string) *Server {
 	return &Server{
 		stateDir: stateDir,
@@ -43,23 +33,49 @@ func NewServer(stateDir, hostname, authKey string) *Server {
 	}
 }
 
-// Status returns the current lifecycle state.
 func (s *Server) Status() string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-
 	return s.status
 }
 
-// IsRunning reports whether tsnet successfully reached Running.
 func (s *Server) IsRunning() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-
 	return s.running && s.ts != nil
 }
 
-// Start creates and starts a fresh tsnet instance.
+// installAndroidInterfaceGetter prevents tailscale from calling the
+// restricted Linux netlink interface enumeration on Android.
+func installAndroidInterfaceGetter() {
+	netmon.RegisterInterfaceGetter(func() ([]netmon.Interface, error) {
+		ifs, err := anet.Interfaces()
+		if err != nil {
+			return nil, fmt.Errorf("anet.Interfaces: %w", err)
+		}
+
+		ret := make([]netmon.Interface, len(ifs))
+
+		for i := range ifs {
+			addrs, err := anet.InterfaceAddrsByInterface(&ifs[i])
+			if err != nil {
+				return nil, fmt.Errorf(
+					"interface[%d] Addrs: %w",
+					i,
+					err,
+				)
+			}
+
+			ret[i] = netmon.Interface{
+				Interface: &ifs[i],
+				AltAddrs:  addrs,
+			}
+		}
+
+		return ret, nil
+	})
+}
+
 func (s *Server) Start() (err error) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -69,12 +85,10 @@ func (s *Server) Start() (err error) {
 	}()
 
 	s.mu.Lock()
-
 	if s.running && s.ts != nil {
 		s.mu.Unlock()
 		return nil
 	}
-
 	s.status = "starting"
 	s.mu.Unlock()
 
@@ -83,19 +97,18 @@ func (s *Server) Start() (err error) {
 		return fmt.Errorf("create state directory: %w", err)
 	}
 
+	// Android blocks the normal net.Interfaces()/netlink path.
+	// Install the Android-safe interface provider BEFORE ts.Up().
+	installAndroidInterfaceGetter()
+
 	ts := &tsnet.Server{
 		Dir:      s.stateDir,
 		Hostname: s.hostname,
 		AuthKey:  s.authKey,
-		Logf: func(format string, args ...any) {
-			// Quiet production logging.
-		},
+		Logf:     func(format string, args ...any) {},
 	}
 
-	ctx, cancel := context.WithTimeout(
-		context.Background(),
-		90*time.Second,
-	)
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 
 	if _, err := ts.Up(ctx); err != nil {
@@ -113,18 +126,14 @@ func (s *Server) Start() (err error) {
 	return nil
 }
 
-// Stop removes the tunnel handler first, then closes tsnet.
 func (s *Server) Stop() {
 	s.mu.Lock()
-
 	ts := s.ts
 	removeTunnel := s.removeTunnel
-
 	s.ts = nil
 	s.removeTunnel = nil
 	s.running = false
 	s.status = "stopping"
-
 	s.mu.Unlock()
 
 	if removeTunnel != nil {
@@ -140,7 +149,6 @@ func (s *Server) Stop() {
 	s.mu.Unlock()
 }
 
-// IP4 returns the node's Tailscale IPv4 address.
 func (s *Server) IP4() string {
 	s.mu.RLock()
 	ts := s.ts
