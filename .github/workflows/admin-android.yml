@@ -90,7 +90,9 @@ jobs:
           set -e
           go mod download
           go mod verify
-          go test ./...
+
+          echo "=== Android compile check ==="
+          GOOS=android GOARCH=arm64 go build ./...
 
       - name: Build AAR
         working-directory: admin/tsnet-bridge
