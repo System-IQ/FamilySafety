@@ -12,6 +12,7 @@ sealed interface DashboardState {
     data class Failed(
         val message: String,
         val lastUpdateMillis: Long = 0L,
+        val consecutiveFails: Int = 0,
     ) : DashboardState
 }
 
