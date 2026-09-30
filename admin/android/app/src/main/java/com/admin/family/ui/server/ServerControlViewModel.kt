@@ -45,22 +45,48 @@ class ServerControlViewModel(
 
     fun startServer() {
         val key = authKeyStore.authKey ?: return
+
         _state.update { it.copy(state = ServerState.Starting) }
 
         viewModelScope.launch {
-            val result = wrapper.start(key, _state.value.hostname)
-            if (result.isSuccess) {
-                // try to start proxy
-                wrapper.listenAndProxy(
-                    _state.value.proxyPort,
-                    _state.value.proxyTarget,
-                )
-                val ip = wrapper.ip4()
-                _state.update { it.copy(state = ServerState.Running(ip)) }
-            } else {
+            val startResult = wrapper.start(
+                key,
+                _state.value.hostname,
+            )
+
+            if (startResult.isFailure) {
                 _state.update {
-                    it.copy(state = ServerState.Failed(wrapper.lastError ?: "unknown"))
+                    it.copy(
+                        state = ServerState.Failed(
+                            wrapper.lastError ?: "server start failed"
+                        )
+                    )
                 }
+                return@launch
+            }
+
+            val proxyResult = wrapper.listenAndProxy(
+                _state.value.proxyPort,
+                _state.value.proxyTarget,
+            )
+
+            if (proxyResult.isFailure) {
+                _state.update {
+                    it.copy(
+                        state = ServerState.Failed(
+                            wrapper.lastError ?: "proxy start failed"
+                        )
+                    )
+                }
+                return@launch
+            }
+
+            val ip = wrapper.ip4()
+
+            _state.update {
+                it.copy(
+                    state = ServerState.Running(ip)
+                )
             }
         }
     }
