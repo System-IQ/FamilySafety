@@ -1,0 +1,251 @@
+#!/data/data/com.termux/files/usr/bin/bash
+#
+# fsserver — unified control for Family Safety backend + Tailscale
+# Usage: fsserver <command> [args]
+#
+set -u
+
+PREFIX="${PREFIX:-/data/data/com.termux/files/usr}"
+HOME="${HOME:-/data/data/com.termux/files/home}"
+FS_ROOT="$HOME/FamilySafety"
+FS_SOCKET="$HOME/.tailscale/tailscaled.sock"
+FS_ENV="$HOME/.fsserver.env"
+
+# Load env overrides
+[ -f "$FS_ENV" ] && . "$FS_ENV"
+: "${FS_PORT:=8000}"
+: "${FS_HEALTH_URL:=http://127.0.0.1:$FS_PORT/health}"
+
+c_reset=$'\033[0m'; c_bold=$'\033[1m'
+c_red=$'\033[31m'; c_grn=$'\033[32m'; c_yel=$'\033[33m'
+c_blu=$'\033[34m'; c_cyn=$'\033[36m'
+
+hr() { printf '%*s\n' "${1:-60}" '' | tr ' ' '─'; }
+
+cmd_status() {
+    echo "${c_bold}Family Safety — Server Status${c_reset}"
+    hr 60
+
+    # tailscaled
+    if sv status tailscaled 2>/dev/null | grep -q "^run:"; then
+        echo "  tailscaled   : ${c_grn}RUNNING${c_reset}"
+    else
+        echo "  tailscaled   : ${c_red}STOPPED${c_reset}"
+    fi
+
+    # fs-api
+    if sv status fs-api 2>/dev/null | grep -q "^run:"; then
+        echo "  fs-api       : ${c_grn}RUNNING${c_reset}"
+    else
+        echo "  fs-api       : ${c_red}STOPPED${c_reset}"
+    fi
+
+    # fs-serve
+    if sv status fs-serve 2>/dev/null | grep -q "^run:"; then
+        echo "  fs-serve     : ${c_grn}RUNNING${c_reset}"
+    else
+        echo "  fs-serve     : ${c_red}STOPPED${c_reset}"
+    fi
+
+    hr 60
+
+    # Tailscale IP
+    if [ -S "$FS_SOCKET" ]; then
+        ip=$(tailscale --socket="$FS_SOCKET" ip -4 2>/dev/null | head -1)
+        [ -n "$ip" ] && echo "  Tailscale IP : ${c_cyn}$ip${c_reset}"
+    fi
+
+    # Health
+    if command -v curl >/dev/null 2>&1; then
+        health=$(curl -s --max-time 3 "$FS_HEALTH_URL" 2>/dev/null)
+        if echo "$health" | grep -q '"status":"ok"'; then
+            echo "  Backend      : ${c_grn}HEALTHY${c_reset}"
+        elif [ -n "$health" ]; then
+            echo "  Backend      : ${c_yel}DEGRADED${c_reset}"
+        else
+            echo "  Backend      : ${c_red}UNREACHABLE${c_reset}"
+        fi
+    fi
+
+    # Serve config
+    if [ -S "$FS_SOCKET" ]; then
+        if tailscale --socket="$FS_SOCKET" serve status 2>/dev/null | grep -q ":$FS_PORT"; then
+            echo "  Serve        : ${c_grn}CONFIGURED${c_reset} (port $FS_PORT)"
+        else
+            echo "  Serve        : ${c_yel}NOT CONFIGURED${c_reset}"
+        fi
+    fi
+}
+
+cmd_start() {
+    echo "▶ Starting services…"
+    sv up tailscaled 2>/dev/null || true
+    sleep 2
+    sv up fs-api 2>/dev/null || true
+    sv up fs-serve 2>/dev/null || true
+    sleep 3
+    cmd_status
+}
+
+cmd_stop() {
+    echo "■ Stopping services…"
+    sv down fs-serve 2>/dev/null || true
+    sv down fs-api 2>/dev/null || true
+    echo "  fs-serve and fs-api stopped."
+    echo "  tailscaled kept running (needed for status)."
+    echo "  To stop tailscaled: fsserver stop-tunnel"
+}
+
+cmd_restart() {
+    echo "↻ Restarting…"
+    sv restart fs-api 2>/dev/null || true
+    sv restart fs-serve 2>/dev/null || true
+    sleep 3
+    cmd_status
+}
+
+cmd_stop_tunnel() {
+    echo "■ Stopping tailscaled (tunnel down)…"
+    sv down tailscaled 2>/dev/null || true
+    echo "  Tunnel stopped. Devices can no longer reach this node."
+}
+
+cmd_start_tunnel() {
+    echo "▶ Starting tailscaled…"
+    sv up tailscaled 2>/dev/null || true
+    sleep 3
+    if tailscale --socket="$FS_SOCKET" status >/dev/null 2>&1; then
+        ip=$(tailscale --socket="$FS_SOCKET" ip -4 2>/dev/null | head -1)
+        echo "  Tunnel up. IP: $ip"
+    else
+        echo "  Waiting for tailscale to come online…"
+    fi
+}
+
+cmd_logs() {
+    local service="${1:-fs-api}"
+    local logfile="$PREFIX/var/log/sv/$service/current"
+    if [ ! -f "$logfile" ]; then
+        echo "No logs for $service"
+        return 1
+    fi
+    echo "=== $service logs (last 50 lines, following) ==="
+    tail -n 50 -f "$logfile"
+}
+
+cmd_health() {
+    echo "Checking backend health at $FS_HEALTH_URL"
+    hr 60
+    curl -s --max-time 5 "$FS_HEALTH_URL" || echo "(no response)"
+    echo
+    hr 60
+    if [ -S "$FS_SOCKET" ]; then
+        echo "Tailscale status:"
+        tailscale --socket="$FS_SOCKET" status 2>&1 | head -10
+    fi
+}
+
+cmd_doctor() {
+    echo "${c_bold}Family Safety — Doctor${c_reset}"
+    hr 60
+    local ok=0; local fail=0
+
+    check() {
+        local label="$1"; local condition="$2"
+        if eval "$condition" >/dev/null 2>&1; then
+            echo "  [${c_grn}OK${c_reset}]   $label"
+            ok=$((ok+1))
+        else
+            echo "  [${c_red}FAIL${c_reset}] $label"
+            fail=$((fail+1))
+        fi
+    }
+
+    check "Termux prefix exists"       "[ -d '$PREFIX' ]"
+    check "FamilySafety dir exists"    "[ -d '$FS_ROOT' ]"
+    check "Python is installed"        "command -v python"
+    check "uvicorn is importable"      "python -c 'import uvicorn'"
+    check "fastapi is importable"      "python -c 'import fastapi'"
+    check "tailscale binary exists"    "command -v tailscale"
+    check "curl binary exists"         "command -v curl"
+    check "sv (runit) available"       "command -v sv"
+    check "tailscaled service file"    "[ -L '$PREFIX/var/service/tailscaled' ] || [ -d '$PREFIX/var/service/tailscaled' ]"
+    check "fs-api service file"        "[ -L '$PREFIX/var/service/fs-api' ] || [ -d '$PREFIX/var/service/fs-api' ]"
+    check "fs-serve service file"      "[ -L '$PREFIX/var/service/fs-serve' ] || [ -d '$PREFIX/var/service/fs-serve' ]"
+    check "tailscale socket exists"    "[ -S '$FS_SOCKET' ]"
+    check "SQLite DB exists"           "[ -f '$FS_ROOT/data/familysafety.db' ]"
+
+    hr 60
+    echo "  Passed: $ok    Failed: $fail"
+    [ "$fail" -eq 0 ] && echo "  ${c_grn}All checks passed.${c_reset}" || echo "  ${c_yel}Some checks failed — review above.${c_reset}"
+}
+
+cmd_install() {
+    echo "▶ Installing services into $PREFIX/var/service…"
+    mkdir -p "$PREFIX/var/service"
+    mkdir -p "$PREFIX/var/log/sv/fs-api" "$PREFIX/var/log/sv/fs-serve"
+
+    for svc in fs-api fs-serve; do
+        src="$FS_ROOT/admin/termux-server/services/$svc"
+        dst="$PREFIX/var/service/$svc"
+        [ -L "$dst" ] || [ -d "$dst" ] && { echo "  $svc already installed, removing…"; rm -rf "$dst"; }
+        cp -r "$src" "$dst"
+        echo "  ✓ $svc → $dst"
+    done
+
+    echo "▶ Reloading runsvdir…"
+    sv up fs-api 2>/dev/null || true
+    sv up fs-serve 2>/dev/null || true
+    sleep 3
+    cmd_status
+}
+
+cmd_uninstall() {
+    echo "▶ Removing fs-api and fs-serve services…"
+    sv down fs-api 2>/dev/null || true
+    sv down fs-serve 2>/dev/null || true
+    rm -rf "$PREFIX/var/service/fs-api" "$PREFIX/var/service/fs-serve"
+    echo "  ✓ removed. tailscaled untouched."
+}
+
+cmd_help() {
+    cat <<HELP
+${c_bold}fsserver${c_reset} — Family Safety server control
+
+${c_bold}Usage:${c_reset} fsserver <command>
+
+${c_bold}Lifecycle:${c_reset}
+  start           Start fs-api and fs-serve (keeps tailscaled)
+  stop            Stop fs-api and fs-serve
+  restart         Restart fs-api and fs-serve
+  start-tunnel    Start tailscaled (VPN)
+  stop-tunnel     Stop tailscaled (VPN)
+
+${c_bold}Info:${c_reset}
+  status          Show current state of all services
+  health          Fetch /health endpoint + tailscale status
+  logs [service]  Follow logs (fs-api by default)
+  doctor          Check all prerequisites
+
+${c_bold}Setup:${c_reset}
+  install         Copy service files to \$PREFIX/var/service
+  uninstall       Remove service files (tailscaled untouched)
+HELP
+}
+
+# Dispatch
+case "${1:-help}" in
+    start)         cmd_start ;;
+    stop)          cmd_stop ;;
+    restart)       cmd_restart ;;
+    start-tunnel)  cmd_start_tunnel ;;
+    stop-tunnel)   cmd_stop_tunnel ;;
+    status)        cmd_status ;;
+    health)        cmd_health ;;
+    logs)          shift; cmd_logs "$@" ;;
+    doctor)        cmd_doctor ;;
+    install)       cmd_install ;;
+    uninstall)     cmd_uninstall ;;
+    help|-h|--help) cmd_help ;;
+    *)             echo "Unknown command: $1"; echo; cmd_help; exit 1 ;;
+esac

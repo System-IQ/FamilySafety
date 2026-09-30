@@ -1,0 +1,71 @@
+#!/data/data/com.termux/files/usr/bin/bash
+exec 2>&1
+
+# Load optional environment overrides
+[ -f "$HOME/.fsserver.env" ] && . "$HOME/.fsserver.env"
+
+: "${FS_PORT:=8000}"
+: "${FS_SOCKET:=$HOME/.tailscale/tailscaled.sock}"
+: "${FS_TAILSCALE_HOSTNAME:=tailscale-termux}"
+
+echo "[fs-serve] starting at $(date -Iseconds)"
+echo "[fs-serve] waiting for tailscaled socket at $FS_SOCKET"
+
+# Wait for tailscaled socket to appear
+for i in $(seq 1 60); do
+    if [ -S "$FS_SOCKET" ]; then
+        echo "[fs-serve] socket ready after ${i}s"
+        break
+    fi
+    sleep 1
+done
+
+if [ ! -S "$FS_SOCKET" ]; then
+    echo "[fs-serve] [FATAL] socket not found after 60s"
+    exit 1
+fi
+
+# Ensure tailscale is up before configuring serve
+echo "[fs-serve] waiting for tailscale to be Running"
+for i in $(seq 1 60); do
+    if tailscale --socket="$FS_SOCKET" status >/dev/null 2>&1; then
+        echo "[fs-serve] tailscale Running after ${i}s"
+        break
+    fi
+    sleep 1
+done
+
+# Apply serve rules (idempotent — re-apply on every start)
+echo "[fs-serve] applying TCP serve on port $FS_PORT"
+tailscale --socket="$FS_SOCKET" serve --bg \
+    --tcp="$FS_PORT" \
+    "tcp://127.0.0.1:$FS_PORT" || {
+    echo "[fs-serve] tcp serve failed (non-fatal, may already exist)"
+}
+
+echo "[fs-serve] applying HTTPS serve"
+tailscale --socket="$FS_SOCKET" serve --bg \
+    "http://127.0.0.1:$FS_PORT" || {
+    echo "[fs-serve] https serve failed (non-fatal, may already exist)"
+}
+
+echo "[fs-serve] configuration applied. Monitoring every 60s."
+
+# Monitor loop: every 60s re-verify serve is configured
+while true; do
+    sleep 60
+    # If tailscale down, wait and retry
+    if ! tailscale --socket="$FS_SOCKET" status >/dev/null 2>&1; then
+        echo "[fs-serve] tailscale unreachable, waiting…"
+        sleep 5
+        continue
+    fi
+    # Re-apply serve if it disappeared
+    if ! tailscale --socket="$FS_SOCKET" serve status 2>/dev/null | grep -q ":$FS_PORT"; then
+        echo "[fs-serve] serve missing, re-applying at $(date -Iseconds)"
+        tailscale --socket="$FS_SOCKET" serve --bg \
+            --tcp="$FS_PORT" "tcp://127.0.0.1:$FS_PORT" 2>/dev/null || true
+        tailscale --socket="$FS_SOCKET" serve --bg \
+            "http://127.0.0.1:$FS_PORT" 2>/dev/null || true
+    fi
+done

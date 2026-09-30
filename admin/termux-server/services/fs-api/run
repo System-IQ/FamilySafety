@@ -1,0 +1,22 @@
+#!/data/data/com.termux/files/usr/bin/bash
+exec 2>&1
+
+# Load optional environment overrides
+[ -f "$HOME/.fsserver.env" ] && . "$HOME/.fsserver.env"
+
+# Defaults
+: "${FS_HOST:=127.0.0.1}"
+: "${FS_PORT:=8000}"
+: "${FS_LOG_LEVEL:=info}"
+
+echo "[fs-api] starting uvicorn on $FS_HOST:$FS_PORT at $(date -Iseconds)"
+
+cd "$HOME/FamilySafety" || {
+    echo "[FATAL] $HOME/FamilySafety not found"
+    exit 1
+}
+
+exec python -m uvicorn backend.api.main:app \
+    --host "$FS_HOST" \
+    --port "$FS_PORT" \
+    --log-level "$FS_LOG_LEVEL"

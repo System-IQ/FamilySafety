@@ -42,3 +42,7 @@ venv/
 *.db
 *.sqlite
 *.sqlite3
+
+# Don't ignore termux-server (it's our source)
+!admin/termux-server/
+!admin/termux-server/**
