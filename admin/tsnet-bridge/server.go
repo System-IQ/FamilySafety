@@ -3,6 +3,7 @@ package tsnetbridge
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
 	"sync"
 	"time"
@@ -45,35 +46,57 @@ func (s *Server) IsRunning() bool {
 	return s.running && s.ts != nil
 }
 
-// installAndroidInterfaceGetter prevents tailscale from calling the
-// restricted Linux netlink interface enumeration on Android.
-func installAndroidInterfaceGetter() {
-	netmon.RegisterInterfaceGetter(func() ([]netmon.Interface, error) {
-		ifs, err := anet.Interfaces()
+// installAndroidNetworkIntegration configures Tailscale's Android-safe
+// interface enumeration and supplies the active Android network interface
+// as the default route interface. Android blocks the normal Linux netlink
+// route/interface paths used by Tailscale.
+func installAndroidNetworkIntegration() error {
+	ifs, err := anet.Interfaces()
+	if err != nil {
+		return fmt.Errorf("anet.Interfaces: %w", err)
+	}
+
+	ret := make([]netmon.Interface, 0, len(ifs))
+	defaultInterface := ""
+
+	for i := range ifs {
+		addrs, err := anet.InterfaceAddrsByInterface(&ifs[i])
 		if err != nil {
-			return nil, fmt.Errorf("anet.Interfaces: %w", err)
+			return fmt.Errorf(
+				"interface[%d] Addrs: %w",
+				i,
+				err,
+			)
 		}
 
-		ret := make([]netmon.Interface, len(ifs))
+		ret = append(ret, netmon.Interface{
+			Interface: &ifs[i],
+			AltAddrs:  addrs,
+		})
 
-		for i := range ifs {
-			addrs, err := anet.InterfaceAddrsByInterface(&ifs[i])
-			if err != nil {
-				return nil, fmt.Errorf(
-					"interface[%d] Addrs: %w",
-					i,
-					err,
-				)
-			}
-
-			ret[i] = netmon.Interface{
-				Interface: &ifs[i],
-				AltAddrs:  addrs,
+		// Select the first active non-loopback interface that has
+		// an IPv4 address. On the test device this is wlan0.
+		if defaultInterface == "" &&
+			ifs[i].Flags&net.FlagUp != 0 &&
+			ifs[i].Flags&net.FlagLoopback == 0 {
+			for _, addr := range addrs {
+				if ip, _, err := net.ParseCIDR(addr.String()); err == nil && ip.To4() != nil {
+					defaultInterface = ifs[i].Name
+					break
+				}
 			}
 		}
+	}
 
+	if defaultInterface != "" {
+		netmon.UpdateLastKnownDefaultRouteInterface(defaultInterface)
+	}
+
+	netmon.RegisterInterfaceGetter(func() ([]netmon.Interface, error) {
 		return ret, nil
 	})
+
+	return nil
 }
 
 func (s *Server) Start() (err error) {
@@ -97,9 +120,13 @@ func (s *Server) Start() (err error) {
 		return fmt.Errorf("create state directory: %w", err)
 	}
 
-	// Android blocks the normal net.Interfaces()/netlink path.
-	// Install the Android-safe interface provider BEFORE ts.Up().
-	installAndroidInterfaceGetter()
+	// Android blocks the normal Linux netlink route/interface paths.
+	// Configure the Android-safe interface provider and default route
+	// before creating/up-ing the tsnet server.
+	if err := installAndroidNetworkIntegration(); err != nil {
+		s.fail(err)
+		return fmt.Errorf("install Android network integration: %w", err)
+	}
 
 	ts := &tsnet.Server{
 		Dir:      s.stateDir,
