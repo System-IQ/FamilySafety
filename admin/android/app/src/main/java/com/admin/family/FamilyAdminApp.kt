@@ -6,9 +6,13 @@ import com.admin.family.data.prefs.AppPreferences
 import com.admin.family.data.repository.DefaultSettingsRepository
 import com.admin.family.data.repository.DeviceRepository
 import com.admin.family.data.repository.SettingsRepository
-import com.admin.family.data.tsnet.AuthKeyStore
-import com.admin.family.data.tsnet.TsnetServerWrapper
 
+/**
+ * Application container.
+ *
+ * The Family Safety server runs in Termux (via start-server / stop-server).
+ * This app is a CLIENT — it never hosts a network server itself.
+ */
 class FamilyAdminApp : Application() {
     lateinit var preferences: AppPreferences
         private set
@@ -18,10 +22,6 @@ class FamilyAdminApp : Application() {
         private set
     lateinit var deviceRepository: DeviceRepository
         private set
-    lateinit var authKeyStore: AuthKeyStore
-        private set
-    lateinit var tsnetWrapper: TsnetServerWrapper
-        private set
 
     override fun onCreate() {
         super.onCreate()
@@ -29,7 +29,5 @@ class FamilyAdminApp : Application() {
         settingsRepository = DefaultSettingsRepository(preferences)
         apiClient = ApiClient(preferences.apiBaseUrl)
         deviceRepository = DeviceRepository(apiClient)
-        authKeyStore = AuthKeyStore(this)
-        tsnetWrapper = TsnetServerWrapper(this)
     }
 }

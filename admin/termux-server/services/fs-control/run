@@ -1,0 +1,21 @@
+#!/data/data/com.termux/files/usr/bin/bash
+exec 2>&1
+
+# Explicit PATH (runit may not source bashrc)
+export PREFIX="${PREFIX:-/data/data/com.termux/files/usr}"
+export PATH="$PREFIX/bin:/system/bin:/system/xbin:$PATH"
+export HOME="${HOME:-/data/data/com.termux/files/home}"
+
+[ -f "$HOME/.fsserver.env" ] && . "$HOME/.fsserver.env"
+
+SCRIPT="$HOME/FamilySafety/admin/termux-server/control_agent.py"
+
+echo "[fs-control] starting at $(date -Iseconds)"
+echo "[fs-control] script: $SCRIPT"
+
+if [ ! -f "$SCRIPT" ]; then
+    echo "[fs-control] [FATAL] $SCRIPT not found"
+    exit 1
+fi
+
+exec python "$SCRIPT"

@@ -1,0 +1,59 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# stop-server — v5.0 lean
+set -u
+
+G=$'\033[32m'; D=$'\033[2m'; B=$'\033[1m'; N=$'\033[0m'
+Y=$'\033[33m'
+SOCK="$HOME/.tailscale/tailscaled.sock"
+
+T0=$(date +%s)
+
+clear 2>/dev/null
+
+echo
+# ── fs-control intentionally kept alive ──
+if sv status fs-control 2>/dev/null | grep -q "^run:"; then
+    echo "  ${G}✓${N} fs-control  ${D}kept running${N}"
+fi
+
+echo "${B}${Y}────────────────────────────────────────${N}"
+echo "${B}${Y}   Family Safety — Stopping${N}"
+echo "${B}${Y}────────────────────────────────────────${N}"
+echo
+
+# 1. Funnel
+tailscale --socket="$SOCK" funnel --https=443 off >/dev/null 2>&1
+echo "  ${G}✓${N} Funnel      ${D}disabled${N}"
+
+# 2. Serve
+tailscale --socket="$SOCK" serve --tcp=8000 off >/dev/null 2>&1
+tailscale --socket="$SOCK" serve --https=443 off >/dev/null 2>&1
+echo "  ${G}✓${N} Serve       ${D}cleared${N}"
+
+# 3. fs-serve
+sv down fs-serve 2>/dev/null
+sleep 1
+echo "  ${G}✓${N} fs-serve    ${D}stopped${N}"
+
+# 4. fs-api
+sv down fs-api 2>/dev/null
+sleep 1
+echo "  ${G}✓${N} FastAPI     ${D}stopped${N}"
+
+# 5. tunnel
+tailscale-cli down >/dev/null 2>&1
+sleep 1
+echo "  ${G}✓${N} Tunnel      ${D}closed${N}"
+
+# 6. tailscaled
+sv down tailscaled 2>/dev/null
+sleep 1
+echo "  ${G}✓${N} tailscaled  ${D}stopped${N}"
+
+ELAPSED=$(( $(date +%s) - T0 ))
+
+echo
+echo "${B}${Y}────────────────────────────────────────${N}"
+printf "  ${D}${B}○ STOPPED${N}  ${D}·${N}  %ss\n" "$ELAPSED"
+echo "${B}${Y}────────────────────────────────────────${N}"
+echo

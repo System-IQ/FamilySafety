@@ -1,0 +1,108 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# start-server — v5.0 lean
+set -u
+
+# الألوان
+G=$'\033[32m'; R=$'\033[31m'; Y=$'\033[33m'
+D=$'\033[2m'; B=$'\033[1m'; N=$'\033[0m'
+C=$'\033[36m'
+
+T0=$(date +%s)
+SOCK="$HOME/.tailscale/tailscaled.sock"
+
+clear 2>/dev/null
+
+# ── Ensure fs-control is running (self-heal) ──
+if ! sv status fs-control 2>/dev/null | grep -q "^run:"; then
+    sv up fs-control 2>/dev/null
+    sleep 1
+fi
+
+
+echo
+echo "${B}${C}────────────────────────────────────────${N}"
+echo "${B}${C}   Family Safety — Starting${N}"
+echo "${B}${C}────────────────────────────────────────${N}"
+echo
+
+# ── 1. tailscaled ──
+sv up tailscaled 2>/dev/null
+sleep 2
+
+# ── 2. socket ──
+for i in 1 2 3 4 5 6 7 8 9 10; do
+    [ -S "$SOCK" ] && break
+    sleep 1
+done
+
+# ── 3. tunnel ──
+if ! tailscale --socket="$SOCK" status 2>/dev/null | grep -q "100\."; then
+    tailscale-cli up >/dev/null 2>&1
+    for i in 1 2 3 4 5 6 7 8; do
+        tailscale --socket="$SOCK" status 2>/dev/null | grep -q "100\." && break
+        sleep 1
+    done
+fi
+
+# ── 4. fs-api ──
+sv up fs-api 2>/dev/null
+for i in 1 2 3 4 5 6 7 8 9 10; do
+    curl -s --max-time 1 http://127.0.0.1:8000/health 2>/dev/null | grep -q '"status":"ok"' && break
+    sleep 1
+done
+
+# ── 5. fs-serve ──
+sv up fs-serve 2>/dev/null
+sleep 1
+
+# ── 6. Funnel ──
+tailscale --socket="$SOCK" funnel --bg --https=443 http://127.0.0.1:8000 >/dev/null 2>&1
+
+# ── 7. verify ──
+sleep 1
+
+IP=$(tailscale --socket="$SOCK" ip -4 2>/dev/null | head -1)
+TS=$(tailscale --socket="$SOCK" status 2>/dev/null | grep -c "100\.")
+API=$(curl -s --max-time 1 http://127.0.0.1:8000/health 2>/dev/null | grep -c '"status":"ok"')
+FUN=$(tailscale --socket="$SOCK" funnel status 2>/dev/null | grep -c "Funnel on")
+
+# Battery
+BAT=$(cat /sys/class/power_supply/battery/capacity 2>/dev/null)
+if [ -z "$BAT" ]; then
+    BAT=$(termux-battery-status 2>/dev/null | grep -o '"percentage": *[0-9]*' | grep -o '[0-9]*')
+fi
+[ -z "$BAT" ] && BAT="—"
+
+# RAM
+MEM=$(awk '/MemTotal/{t=$2} /MemAvailable/{a=$2} END{printf "%d", (t-a)*100/t}' /proc/meminfo 2>/dev/null)
+[ -z "$MEM" ] && MEM="—"
+
+# Uptime for fs-api
+UP=$(sv status fs-api 2>/dev/null | grep -oE '[0-9]+s' | head -1 | tr -d 's')
+[ -z "$UP" ] && UP=0
+
+# ── Output ──
+mark() { [ "$1" -ge 1 ] && echo "${G}✓${N}" || echo "${R}✗${N}"; }
+
+printf "  %s Tailscale   %s\n" "$(mark $TS)" "${D}${IP:-—}${N}"
+printf "  %s FastAPI     %s\n" "$(mark $API)" "${D}port 8000${N}"
+printf "  %s Serve       %s\n" "$(mark $API)" "${D}tailnet${N}"
+printf "  %s Funnel      %s\n" "$(mark $FUN)" "${D}public${N}"
+
+echo
+echo "${B}${C}────────────────────────────────────────${N}"
+
+ELAPSED=$(( $(date +%s) - T0 ))
+
+if [ "$API" -ge 1 ] && [ "$TS" -ge 1 ]; then
+    printf "  ${G}${B}● READY${N}  ${D}·${N}  %ss  ${D}·${N}  🔋 %s%%  ${D}·${N}  💾 %s%%\n" \
+        "$ELAPSED" "$BAT" "$MEM"
+    if [ "$FUN" -ge 1 ]; then
+        echo "  ${D}https://tailscale-termux.tail2bdafc.ts.net${N}"
+    fi
+else
+    printf "  ${R}${B}● FAILED${N}  ${D}·${N}  %ss\n" "$ELAPSED"
+fi
+
+echo "${B}${C}────────────────────────────────────────${N}"
+echo

@@ -14,7 +14,6 @@ import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.NetworkCheck
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.SdCard
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.*
@@ -42,7 +41,6 @@ import kotlin.math.roundToInt
 fun ServerDashboardScreen(
     vm: ServerDashboardViewModel,
     onBack: () -> Unit,
-    onOpenControl: () -> Unit = {},
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -75,10 +73,7 @@ fun ServerDashboardScreen(
                             tint = if (ui.autoRefresh) Success else MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    IconButton(onClick = onOpenControl) {
-                        Icon(Icons.Filled.Settings, contentDescription = "Server Control")
-                    }
-                },
+},
             )
         },
     ) { padding ->

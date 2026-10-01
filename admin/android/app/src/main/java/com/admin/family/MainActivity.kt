@@ -27,8 +27,6 @@ class MainActivity : ComponentActivity() {
                         deviceRepository = app.deviceRepository,
                         settingsRepository = app.settingsRepository,
                         apiClient = app.apiClient,
-                        tsnetWrapper = app.tsnetWrapper,
-                        authKeyStore = app.authKeyStore,
                     )
                 }
             }
