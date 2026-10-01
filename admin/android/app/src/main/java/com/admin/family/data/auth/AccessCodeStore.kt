@@ -73,7 +73,7 @@ class AccessCodeStore(context: Context) {
     }
 
     // ─── State queries ───
-    fun isConfigured(): Boolean = !code.isNullOrBlank() && !pinHash.isNullOrBlank()
+    fun isConfigured(): Boolean = !code.isNullOrBlank()
     fun hasPin(): Boolean = !pinHash.isNullOrBlank()
     fun hasRecoveryEmail(): Boolean = !recoveryEmail.isNullOrBlank()
 
@@ -117,6 +117,19 @@ class AccessCodeStore(context: Context) {
 
     fun clear() {
         prefs.edit().clear().apply()
+    }
+
+    /**
+     * Ensures an access code exists. If none is stored yet, generates
+     * a fresh one and saves it. Returns the existing or new code.
+     * Used for auto-provisioning without requiring a user-facing PIN.
+     */
+    fun generateAndSaveCodeIfNeeded(): String {
+        val existing = code
+        if (!existing.isNullOrBlank()) return existing
+        val fresh = generateAccessCode()
+        code = fresh
+        return fresh
     }
 
     // ─── Backup codes ───

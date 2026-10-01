@@ -63,12 +63,15 @@ class FamilyAdminApp : Application() {
         configStore = ConfigStore(this)
         tsnetBridge = TsnetBridge(this)
 
-        // 3. If code exists: configure backend in background
+        // 3. Ensure an access code exists (auto-generated on first launch),
+        //    then configure the backend in the background. No PIN screen.
         val savedCode = accessCodeStore.code
         if (!savedCode.isNullOrBlank()) {
             bootstrapBackend(savedCode)
         } else {
-            Log.i(TAG, "no access code — waiting for user input")
+            val fresh = accessCodeStore.generateAndSaveCodeIfNeeded()
+            bootstrapBackend(fresh)
+            Log.i(TAG, "auto-generated access code on first launch")
         }
     }
 
