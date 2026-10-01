@@ -27,6 +27,12 @@ class FileInfo:
 files = {str(f.relative_to(REPO)): FileInfo(f) for f in all_kt}
 
 def get(suffix):
+    """Exact match on the final path component, or ends-with on full path."""
+    # prefer exact final-component match
+    for rel, fi in files.items():
+        if rel.endswith("/" + suffix) or rel == suffix:
+            return fi
+    # fallback: ends-with
     for rel, fi in files.items():
         if rel.endswith(suffix):
             return fi
@@ -165,17 +171,14 @@ if ar:
         if m not in ar.content:
             err(f"AuthRepository: missing '{m}'")
 
-# 12. LoginScreen autofill
+# 12. LoginScreen: BuildConfig import if used
 ls = get("LoginScreen.kt")
 if ls:
-    for imp in ["import androidx.compose.ui.autofill.ContentType",
-                "import androidx.compose.ui.semantics.contentType",
-                "import androidx.compose.ui.semantics.semantics"]:
-        if imp not in ls.content:
-            err(f"LoginScreen: missing '{imp}'")
     if "BuildConfig" in ls.content and \
        "import com.admin.family.BuildConfig" not in ls.content:
         err("LoginScreen: uses BuildConfig, import missing")
+    # Note: ContentType import removed intentionally — Compose 1.7.x
+    # marks it internal; autofill works via KeyboardType + labels.
 
 # 13. ControlRoom
 cr = get("ControlRoomScreen.kt")

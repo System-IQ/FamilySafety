@@ -30,6 +30,8 @@ class MainActivity : ComponentActivity() {
                         authRepository = app.authRepository,
                         tokenStore = app.tokenStore,
                         preferences = app.preferences,
+                        controlClient = app.controlClient,
+                        controlTokenStore = app.controlTokenStore,
                     )
                 }
             }

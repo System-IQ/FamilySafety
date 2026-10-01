@@ -7,6 +7,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.admin.family.data.api.ApiClient
+import com.admin.family.data.api.ControlClient
+import com.admin.family.data.auth.ControlTokenStore
 import com.admin.family.data.auth.TokenStore
 import com.admin.family.data.prefs.AppPreferences
 import com.admin.family.data.repository.AuthRepository
@@ -21,6 +23,9 @@ import com.admin.family.ui.controlroom.ControlRoomViewModelFactory
 import com.admin.family.ui.server.ServerDashboardScreen
 import com.admin.family.ui.server.ServerDashboardViewModel
 import com.admin.family.ui.server.ServerDashboardViewModelFactory
+import com.admin.family.ui.server.ServerInfoScreen
+import com.admin.family.ui.server.ServerInfoViewModel
+import com.admin.family.ui.server.ServerInfoViewModelFactory
 import com.admin.family.ui.settings.SettingsScreen
 import com.admin.family.ui.settings.SettingsViewModel
 import com.admin.family.ui.settings.SettingsViewModelFactory
@@ -30,6 +35,7 @@ object Routes {
     const val CONTROL_ROOM = "control_room"
     const val SETTINGS = "settings"
     const val SERVER_DASHBOARD = "server_dashboard"
+    const val SERVER_INFO = "server_info"
 }
 
 @Composable
@@ -40,9 +46,10 @@ fun AppNavigation(
     authRepository: AuthRepository,
     tokenStore: TokenStore,
     preferences: AppPreferences,
+    controlClient: ControlClient,
+    controlTokenStore: ControlTokenStore,
     navController: NavHostController = rememberNavController(),
 ) {
-    // Start at LOGIN if no token, otherwise go straight to CONTROL_ROOM
     val startDestination = if (authRepository.isLoggedIn()) {
         Routes.CONTROL_ROOM
     } else {
@@ -55,7 +62,9 @@ fun AppNavigation(
     ) {
         composable(Routes.LOGIN) {
             val vm: LoginViewModel = viewModel(
-                factory = LoginViewModelFactory(apiClient, authRepository, tokenStore, settingsRepository, preferences),
+                factory = LoginViewModelFactory(
+                    apiClient, authRepository, tokenStore, settingsRepository, preferences,
+                ),
             )
             LoginScreen(
                 vm = vm,
@@ -99,7 +108,15 @@ fun AppNavigation(
             ServerDashboardScreen(
                 vm = vm,
                 onBack = { navController.popBackStack() },
+                onOpenServerInfo = { navController.navigate(Routes.SERVER_INFO) },
             )
+        }
+
+        composable(Routes.SERVER_INFO) {
+            val vm: ServerInfoViewModel = viewModel(
+                factory = ServerInfoViewModelFactory(controlClient, controlTokenStore),
+            )
+            ServerInfoScreen(vm = vm, onBack = { navController.popBackStack() })
         }
     }
 }

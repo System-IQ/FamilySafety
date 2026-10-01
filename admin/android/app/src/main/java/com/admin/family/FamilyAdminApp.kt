@@ -2,6 +2,8 @@ package com.admin.family
 
 import android.app.Application
 import com.admin.family.data.api.ApiClient
+import com.admin.family.data.api.ControlClient
+import com.admin.family.data.auth.ControlTokenStore
 import com.admin.family.data.auth.TokenStore
 import com.admin.family.data.prefs.AppPreferences
 import com.admin.family.data.repository.AuthRepository
@@ -22,6 +24,10 @@ class FamilyAdminApp : Application() {
         private set
     lateinit var authRepository: AuthRepository
         private set
+    lateinit var controlClient: ControlClient
+        private set
+    lateinit var controlTokenStore: ControlTokenStore
+        private set
 
     override fun onCreate() {
         super.onCreate()
@@ -31,6 +37,11 @@ class FamilyAdminApp : Application() {
         deviceRepository = DeviceRepository(apiClient)
         tokenStore = TokenStore(this)
         authRepository = AuthRepository(apiClient, tokenStore)
+
+        // Control agent (Termux fs-control on 127.0.0.1:9999)
+        controlTokenStore = ControlTokenStore(this)
+        controlClient = ControlClient()
+        controlClient.token = controlTokenStore.token
 
         // Restore session if token exists
         tokenStore.accessToken?.let { apiClient.setAuthToken(it) }
