@@ -8,6 +8,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 
 class ControlRoomViewModel(
     private val repo: DeviceRepository,
@@ -26,7 +28,21 @@ class ControlRoomViewModel(
                 val devices = repo.loadDevices()
                 _state.value = ControlRoomState.Ready(health, devices)
             } catch (t: Throwable) {
-                _state.value = ControlRoomState.Failed(t.message ?: "unknown error")
+                _state.value = when {
+                    t.message?.contains("unauthorized", ignoreCase = true) == true ||
+                            t.message?.contains("401") == true -> ControlRoomState.Unauthorized
+
+                    t is SocketTimeoutException ->
+                        ControlRoomState.Failed("Server not responding (timeout)")
+
+                    t is UnknownHostException ->
+                        ControlRoomState.Failed("Server unreachable")
+
+                    t.message?.contains("HTTP 502") == true ->
+                        ControlRoomState.Failed("Server gateway error")
+
+                    else -> ControlRoomState.Failed(t.message ?: "Connection failed")
+                }
             }
         }
     }

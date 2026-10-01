@@ -5,6 +5,7 @@ import com.admin.family.data.api.dto.HealthDto
 
 sealed interface ControlRoomState {
     data object Loading : ControlRoomState
+    data object Unauthorized : ControlRoomState
     data class Ready(
         val health: HealthDto,
         val devices: List<DeviceDto>,

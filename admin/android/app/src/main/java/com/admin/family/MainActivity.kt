@@ -27,6 +27,8 @@ class MainActivity : ComponentActivity() {
                         deviceRepository = app.deviceRepository,
                         settingsRepository = app.settingsRepository,
                         apiClient = app.apiClient,
+                        authRepository = app.authRepository,
+                        tokenStore = app.tokenStore,
                     )
                 }
             }
