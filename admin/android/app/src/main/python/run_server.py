@@ -34,7 +34,11 @@ def configure(files_dir: str, cache_dir: str = "", access_code: str = "") -> str
       - a stable JWT secret (for compatibility with existing endpoints)
     """
     global _configured
-    os.environ["FS_ENV"] = "production"
+    # NOTE: we deliberately use FS_ENV=android (not "production").
+    # The backend refuses to start with FS_ENV=production unless
+    # DATABASE_URL points to Postgres. On Android we use SQLite at
+    # filesDir/familysafety.db, so "android" is the correct env here.
+    os.environ["FS_ENV"] = "android"
     os.environ["FS_LOG_LEVEL"] = "INFO"
 
     db_path = os.path.join(files_dir, "familysafety.db")
