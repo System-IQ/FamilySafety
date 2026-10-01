@@ -19,13 +19,14 @@ def validate_startup() -> None:
     errors: list[str] = []
     warnings: list[str] = []
 
-    # --- JWT secret ---
-    secret = settings.jwt_secret
-    if env == "production":
-        if len(secret) < 32:
-            errors.append("JWT secret must be >= 32 chars in production")
-        if "insecure" in secret.lower() or "changeme" in secret.lower():
-            errors.append("JWT secret contains an obviously weak value")
+    # --- JWT secret (skipped when access-code mode is active) ---
+    if not settings.access_code:
+        secret = settings.jwt_secret
+        if env == "production":
+            if len(secret) < 32:
+                errors.append("JWT secret must be >= 32 chars in production")
+            if "insecure" in secret.lower() or "changeme" in secret.lower():
+                errors.append("JWT secret contains an obviously weak value")
 
     # --- Database ---
     if env == "production" and os.getenv("DATABASE_URL", "").strip() == "":

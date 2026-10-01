@@ -1,3 +1,5 @@
+# NOTE: In access-code mode, /auth/register and /auth/login are
+# disabled. Clients use the access code directly as Bearer token.
 """Authentication endpoints — real hashing, JWT, rotation, AND audit."""
 import hashlib
 import uuid

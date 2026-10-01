@@ -1,7 +1,6 @@
 """Layer 2: JSON Schema contract validation.
 
-If `jsonschema` is not available (e.g. embedded Chaquopy runtime on
-Android where rpds-py cannot be built), contract validation is
+If `jsonschema` is not available (Android), contract validation is
 skipped. The Pydantic layer (Layer 1) still validates every request.
 """
 import json
@@ -19,13 +18,9 @@ try:
     _HAS_JSONSCHEMA = True
 except ImportError:
     _HAS_JSONSCHEMA = False
-    logger.warning(
-        "jsonschema not available — contract validation disabled "
-        "(Pydantic layer still active)"
-    )
+    logger.warning("jsonschema not available — contract validation disabled")
 
     class JsonSchemaError(Exception):  # type: ignore[no-redef]
-        """Fallback when jsonschema is missing."""
         def __init__(self, message: str = "", *args, **kwargs):
             super().__init__(message)
             self.message = message
@@ -55,11 +50,7 @@ def _validator_for(schema_filename: str):
 
 
 def validate_contract(schema_filename: str, instance: dict[str, Any]) -> None:
-    """Validate instance against a named contract schema.
-
-    No-op when jsonschema is unavailable (embedded runtime).
-    Raises JsonSchemaError on failure (when available).
-    """
+    """Validate against contract schema. No-op if jsonschema unavailable."""
     if not _HAS_JSONSCHEMA:
         return
     validator = _validator_for(schema_filename)

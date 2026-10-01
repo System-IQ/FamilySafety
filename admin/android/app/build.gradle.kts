@@ -60,20 +60,21 @@ chaquopy {
         version = "3.11"
         buildPython("/usr/bin/python3")
         pip {
-            // Only pure-Python packages with Chaquopy wheels.
-            // - jsonschema 4.18+ needs rpds-py (Rust) — not available.
-            // - FastAPI pulls pydantic automatically (Chaquopy picks).
-            install("fastapi")
-            install("uvicorn")
-            install("pyjwt")
-            install("rfc3339-validator")
+            // ─── BULLETPROOF VERSIONS (pure Python, no Rust) ───
+            // fastapi 0.99.x is the last version that works with pydantic v1.
+            // pydantic 1.10.x is pure Python (no pydantic-core / Rust).
+            install("fastapi==0.99.1")
+            install("pydantic==1.10.15")
+            install("uvicorn==0.30.6")
+            install("pyjwt==2.8.0")
+            install("rfc3339-validator==0.1.4")
         }
     }
 }
 
 dependencies {
-    implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.aar", "*.jar"))))
-
+    // ═══ Local AAR — tsnet bridge (built by CI, downloaded to libs/) ═══
+    implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.aar"))))
     val composeBom = platform("androidx.compose:compose-bom:2024.09.03")
     implementation(composeBom)
     androidTestImplementation(composeBom)
@@ -88,6 +89,8 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-service:2.8.6")
     implementation("androidx.navigation:navigation-compose:2.8.2")
     implementation("androidx.core:core-ktx:1.13.1")
+    implementation("androidx.biometric:biometric:1.1.0")
+    implementation("androidx.fragment:fragment-ktx:1.8.3")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")

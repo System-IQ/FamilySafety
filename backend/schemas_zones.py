@@ -1,27 +1,25 @@
 """Pydantic models for /zones endpoints."""
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
+from ._base_model import BaseModel as _BaseModel
 
 _Day = Literal["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 _HHMM_PATTERN = r"^([01][0-9]|2[0-3]):[0-5][0-9]$"
 
 
-class Center(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+class Center(_BaseModel):
     latitude: float = Field(ge=-90, le=90)
     longitude: float = Field(ge=-180, le=180)
 
 
-class Schedule(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+class Schedule(_BaseModel):
     days: list[_Day] = Field(min_length=1)
     start_time: str = Field(pattern=_HHMM_PATTERN)
     end_time: str = Field(pattern=_HHMM_PATTERN)
 
 
-class ZoneCreate(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+class ZoneCreate(_BaseModel):
     device_id: str = Field(min_length=4, max_length=128)
     name: str = Field(min_length=1, max_length=64)
     center: Center
@@ -30,8 +28,7 @@ class ZoneCreate(BaseModel):
     schedule: Optional[Schedule] = None
 
 
-class ZoneUpdate(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+class ZoneUpdate(_BaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=64)
     center: Optional[Center] = None
     radius_meters: Optional[float] = Field(default=None, ge=10, le=50000)
@@ -40,7 +37,7 @@ class ZoneUpdate(BaseModel):
     clear_schedule: bool = False
 
 
-class ZoneOut(BaseModel):
+class ZoneOut(_BaseModel):
     zone_id: str
     device_id: str
     name: str
@@ -52,18 +49,17 @@ class ZoneOut(BaseModel):
     updated_at: Optional[str] = None
 
 
-class ZoneListResponse(BaseModel):
+class ZoneListResponse(_BaseModel):
     zones: list[ZoneOut]
 
 
-class EvaluateRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+class EvaluateRequest(_BaseModel):
     latitude: float = Field(ge=-90, le=90)
     longitude: float = Field(ge=-180, le=180)
     at_utc: Optional[str] = None   # ISO8601 Z; if None -> now
 
 
-class EvaluateResponse(BaseModel):
+class EvaluateResponse(_BaseModel):
     zone_id: str
     device_id: str
     distance_meters: float

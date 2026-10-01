@@ -1,7 +1,8 @@
 """Pydantic models for /events endpoints. Layer 1 validation."""
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
+from ._base_model import BaseModel as _BaseModel
 
 Severity = Literal["info", "warning", "critical"]
 
@@ -29,8 +30,7 @@ EventType = Literal[
 ]
 
 
-class EventCreate(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+class EventCreate(_BaseModel):
     device_id: str = Field(min_length=4, max_length=128)
     event_type: EventType
     severity: Severity
@@ -39,7 +39,7 @@ class EventCreate(BaseModel):
     correlation_id: Optional[str] = Field(default=None, min_length=4, max_length=128)
 
 
-class EventOut(BaseModel):
+class EventOut(_BaseModel):
     event_id: str
     device_id: str
     event_type: str
@@ -49,5 +49,5 @@ class EventOut(BaseModel):
     correlation_id: Optional[str] = None
 
 
-class EventListResponse(BaseModel):
+class EventListResponse(_BaseModel):
     events: list[EventOut]

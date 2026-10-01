@@ -71,6 +71,9 @@ class Settings:
         self.contracts_dir: Path = self.contracts_v1_dir
         # Auth
         self.jwt_secret: str = load_jwt_secret()
+        # Access code (Android build). When set, replaces JWT login.
+        # Clients send:  Authorization: Bearer <access_code>
+        self.access_code: str = os.getenv("FS_ACCESS_CODE", "").strip()
         self.access_token_minutes: int = int(os.getenv("FS_ACCESS_MIN", "15"))
         self.refresh_token_days: int = int(os.getenv("FS_REFRESH_DAYS", "30"))
 

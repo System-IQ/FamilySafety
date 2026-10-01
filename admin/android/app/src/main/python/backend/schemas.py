@@ -2,29 +2,26 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
+from ._base_model import BaseModel as _BaseModel
 
 
-class Battery(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+class Battery(_BaseModel):
 
     level_percent: int = Field(ge=0, le=100)
     charging: bool
     timestamp: datetime
 
 
-class LocationCapability(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+class LocationCapability(_BaseModel):
 
     supported: bool
     permission_state: Literal["granted", "denied", "restricted", "not_determined"]
     background_supported: bool
 
 
-class DeviceIn(BaseModel):
+class DeviceIn(_BaseModel):
     """Matches shared/contracts/v1/device.schema.json."""
-
-    model_config = ConfigDict(extra="forbid")
 
     device_id: str = Field(min_length=4)
     device_name: str = Field(min_length=1)

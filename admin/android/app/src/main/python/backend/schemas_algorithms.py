@@ -1,7 +1,8 @@
 """Pydantic models for /algorithms endpoints."""
 from typing import Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
+from ._base_model import BaseModel as _BaseModel
 
 TestStatus = Literal["unknown", "partial", "passing", "failing"]
 PromoteTarget = Literal["testing", "canary", "production", "blocked", "deprecated"]
@@ -10,8 +11,7 @@ _ALGO_ID_PATTERN = r"^[a-z][a-z0-9_]{2,63}$"
 _SEMVER_PATTERN = r"^[0-9]+\.[0-9]+\.[0-9]+$"
 
 
-class RegisterRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+class RegisterRequest(_BaseModel):
     algorithm_id: str = Field(min_length=3, max_length=64, pattern=_ALGO_ID_PATTERN)
     version: str = Field(min_length=5, max_length=20, pattern=_SEMVER_PATTERN)
     name: str = Field(min_length=3, max_length=128)
@@ -21,7 +21,7 @@ class RegisterRequest(BaseModel):
     test_status: TestStatus = "unknown"
 
 
-class AlgorithmOut(BaseModel):
+class AlgorithmOut(_BaseModel):
     algorithm_id: str
     version: str
     name: str
@@ -37,17 +37,15 @@ class AlgorithmOut(BaseModel):
     superseded_by: Optional[str] = None
 
 
-class AlgorithmListResponse(BaseModel):
+class AlgorithmListResponse(_BaseModel):
     algorithms: list[AlgorithmOut]
 
 
-class SetTestStatusRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+class SetTestStatusRequest(_BaseModel):
     test_status: TestStatus
 
 
-class PromoteRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+class PromoteRequest(_BaseModel):
     target: PromoteTarget
     reason: Optional[str] = Field(default=None, max_length=512)
     superseded_by: Optional[str] = Field(default=None, max_length=64)

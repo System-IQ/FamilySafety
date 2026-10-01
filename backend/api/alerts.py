@@ -28,6 +28,7 @@ from ..schemas_alerts import (
     DismissRequest,
     ResolveRequest,
 )
+from .._base_model import dump_json
 from ..validators import validate_contract
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
@@ -96,7 +97,7 @@ def create(
         triggered_at=body.triggered_at,
         triggered_by_user_id=current["user_id"],
         note=body.note,
-        last_location=body.last_location.model_dump() if body.last_location else None,
+        last_location=dump_json(body.last_location) if body.last_location else None,
         battery_level_percent=body.battery_level_percent,
     )
     _contract_check(alert)

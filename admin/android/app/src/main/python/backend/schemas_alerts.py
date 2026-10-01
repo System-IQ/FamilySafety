@@ -1,7 +1,8 @@
 """Pydantic models for /alerts endpoints."""
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
+from ._base_model import BaseModel as _BaseModel
 
 AlertType = Literal[
     "sos",
@@ -22,16 +23,14 @@ Severity = Literal["info", "warning", "critical"]
 AlertState = Literal["new", "acknowledged", "resolved", "dismissed", "expired"]
 
 
-class LastLocation(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+class LastLocation(_BaseModel):
     latitude: float = Field(ge=-90, le=90)
     longitude: float = Field(ge=-180, le=180)
     accuracy_meters: Optional[float] = Field(default=None, ge=0)
     timestamp: str = Field(min_length=20, max_length=30)
 
 
-class AlertCreate(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+class AlertCreate(_BaseModel):
     device_id: str = Field(min_length=4, max_length=128)
     alert_type: AlertType
     severity: Severity
@@ -41,7 +40,7 @@ class AlertCreate(BaseModel):
     battery_level_percent: Optional[int] = Field(default=None, ge=0, le=100)
 
 
-class AlertOut(BaseModel):
+class AlertOut(_BaseModel):
     alert_id: str
     device_id: str
     alert_type: str
@@ -60,18 +59,17 @@ class AlertOut(BaseModel):
     updated_at: str
 
 
-class AlertListResponse(BaseModel):
+class AlertListResponse(_BaseModel):
     alerts: list[AlertOut]
 
 
-class AcknowledgeRequest(BaseModel):
+class AcknowledgeRequest(_BaseModel):
     """No body needed — kept for future extension."""
 
 
-class ResolveRequest(BaseModel):
+class ResolveRequest(_BaseModel):
     """No body needed — kept for future extension."""
 
 
-class DismissRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+class DismissRequest(_BaseModel):
     reason: Optional[str] = Field(default=None, max_length=512)

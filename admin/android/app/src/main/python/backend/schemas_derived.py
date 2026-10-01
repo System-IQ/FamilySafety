@@ -1,7 +1,8 @@
 """Pydantic models for /derived endpoints."""
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
+from ._base_model import BaseModel as _BaseModel
 
 RecordType = Literal[
     "cleaned_location",
@@ -18,14 +19,12 @@ _ALGO_ID_PATTERN = r"^[a-z][a-z0-9_]{2,63}$"
 _SEMVER_PATTERN = r"^[0-9]+\.[0-9]+\.[0-9]+$"
 
 
-class Uncertainty(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+class Uncertainty(_BaseModel):
     level: UncertaintyLevel = "none"
     notes: Optional[str] = Field(default=None, max_length=1024)
 
 
-class ProvenanceIn(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+class ProvenanceIn(_BaseModel):
     source_record_ids: list[str] = Field(min_length=1)
     algorithm_id: str = Field(min_length=3, max_length=64, pattern=_ALGO_ID_PATTERN)
     algorithm_version: str = Field(min_length=5, max_length=20, pattern=_SEMVER_PATTERN)
@@ -36,8 +35,7 @@ class ProvenanceIn(BaseModel):
     input_hash: Optional[str] = Field(default=None, min_length=32)
 
 
-class DerivedCreate(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+class DerivedCreate(_BaseModel):
     device_id: str = Field(min_length=4, max_length=128)
     record_type: RecordType
     timestamp: str = Field(min_length=20, max_length=30)
@@ -48,7 +46,7 @@ class DerivedCreate(BaseModel):
     insufficient_reason: Optional[str] = Field(default=None, max_length=512)
 
 
-class DerivedOut(BaseModel):
+class DerivedOut(_BaseModel):
     record_id: str
     device_id: str
     record_type: str
@@ -61,5 +59,5 @@ class DerivedOut(BaseModel):
     created_at: str
 
 
-class DerivedListResponse(BaseModel):
+class DerivedListResponse(_BaseModel):
     records: list[DerivedOut]

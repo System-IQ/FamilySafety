@@ -13,10 +13,10 @@ import java.io.File
  * Kotlin bridge to embedded Python (Chaquopy).
  *
  * Lifecycle:
- *   1. init(context)          — starts Python runtime
- *   2. configure(filesDir)    — sets env vars (db path, secrets)
- *   3. startBackend()         — spawns uvicorn in a thread
- *   4. isBackendReady()       — poll until port 8000 accepts
+ *   1. init(context)                    starts Python runtime
+ *   2. configure(context, accessCode)   sets env vars (db, secret, code)
+ *   3. startBackend()                   spawns uvicorn in a thread
+ *   4. isBackendReady()                 poll until port 8000 accepts
  */
 object PythonServer {
 
@@ -27,7 +27,6 @@ object PythonServer {
     @Volatile private var configured = false
     @Volatile private var module: PyObject? = null
 
-    // ── 1. Init runtime ──
     fun init(context: Context) {
         if (initialized) return
         synchronized(this) {
@@ -50,8 +49,11 @@ object PythonServer {
         }
     }
 
-    // ── 2. Configure paths ──
-    fun configure(context: Context) {
+    /**
+     * Configure once. accessCode may be empty → backend still starts
+     * (useful for dashboards that don't require auth).
+     */
+    fun configure(context: Context, accessCode: String) {
         if (configured) return
         val filesDir: File = context.filesDir
         val cacheDir: File = context.cacheDir
@@ -63,6 +65,7 @@ object PythonServer {
                 "configure",
                 filesDir.absolutePath,
                 cacheDir.absolutePath,
+                accessCode,
             ).toString()
         } catch (t: Throwable) {
             Log.e(TAG, "configure failed", t)
@@ -72,7 +75,6 @@ object PythonServer {
         Log.i(TAG, "configure -> $result")
     }
 
-    // ── 3. Start backend ──
     suspend fun startBackend(): String = withContext(Dispatchers.IO) {
         try {
             getModule().callAttr("start_backend").toString()
@@ -82,7 +84,16 @@ object PythonServer {
         }
     }
 
-    // ── 4. Health check ──
+    /** Blocking call used only from a plain thread in Application.onCreate. */
+    fun startBackendBlocking(): String {
+        return try {
+            getModule().callAttr("start_backend").toString()
+        } catch (t: Throwable) {
+            Log.e(TAG, "startBackendBlocking failed", t)
+            "error: ${t.message}"
+        }
+    }
+
     suspend fun isBackendReady(timeoutSec: Double = 15.0): Boolean =
         withContext(Dispatchers.IO) {
             try {

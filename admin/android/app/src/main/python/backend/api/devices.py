@@ -1,6 +1,7 @@
 """Device endpoints — double validation + audit on writes."""
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from ..validators import JsonSchemaError
+from .._base_model import dump_json
 
 from ..audit_repo import record as audit_record
 from ..auth.dependencies import get_current_user
@@ -18,7 +19,7 @@ def create_or_update_device(
     request: Request,
     current: dict = Depends(get_current_user),
 ) -> dict:
-    serialized = device.model_dump(mode="json")
+    serialized = dump_json(device)
     try:
         validate_contract("device.schema.json", serialized)
     except JsonSchemaError as exc:

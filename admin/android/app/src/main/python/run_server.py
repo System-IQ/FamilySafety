@@ -1,7 +1,9 @@
 """
 Family Safety — Python entry point for Android (Chaquopy).
 
-Phase 1.2: start uvicorn in a background thread.
+Phase 1.3: access-code mode. No accounts, no JWT for the Android
+build. The user enters a single code once; the backend accepts it
+as Bearer token.
 """
 from __future__ import annotations
 
@@ -23,8 +25,14 @@ def _log(msg: str) -> None:
     print(f"[run_server] {msg}", flush=True)
 
 
-def configure(files_dir: str, cache_dir: str = "") -> str:
-    """Called from Kotlin once, before start_backend."""
+def configure(files_dir: str, cache_dir: str = "", access_code: str = "") -> str:
+    """Called from Kotlin once, before start_backend.
+
+    Sets env vars so the backend uses:
+      - SQLite at files_dir/familysafety.db
+      - FS_ACCESS_CODE (from the user's input)
+      - a stable JWT secret (for compatibility with existing endpoints)
+    """
     global _configured
     os.environ["FS_ENV"] = "production"
     os.environ["FS_LOG_LEVEL"] = "INFO"
@@ -37,6 +45,13 @@ def configure(files_dir: str, cache_dir: str = "") -> str:
             "android-local-secret-change-me-please-32b-min-length"
         )
 
+    if access_code:
+        os.environ["FS_ACCESS_CODE"] = access_code.strip()
+        _log(f"access code set ({len(access_code.strip())} chars)")
+    else:
+        os.environ.pop("FS_ACCESS_CODE", None)
+        _log("access code cleared (dashboard-only mode)")
+
     _configured = True
     _log(f"configure: files_dir={files_dir} db={db_path}")
     return f"configured db={db_path}"
@@ -47,6 +62,7 @@ def hello() -> str:
         "python_version": sys.version.split()[0],
         "platform": sys.platform,
         "configured": _configured,
+        "has_access_code": bool(os.environ.get("FS_ACCESS_CODE")),
         "server_running": is_backend_ready(timeout_s=0.1),
     }
     _log(f"hello: {info}")
@@ -120,6 +136,7 @@ def is_backend_ready(timeout_s: float = 15.0) -> bool:
 def get_status() -> dict:
     return {
         "configured": _configured,
+        "has_access_code": bool(os.environ.get("FS_ACCESS_CODE")),
         "server_alive": bool(_server_thread and _server_thread.is_alive()),
         "server_ready": is_backend_ready(timeout_s=0.2),
         "started_at": _server_started_at,

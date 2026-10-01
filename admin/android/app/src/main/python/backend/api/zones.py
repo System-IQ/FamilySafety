@@ -23,6 +23,7 @@ from ..schemas_zones import (
     ZoneOut,
     ZoneUpdate,
 )
+from .._base_model import dump_json
 from ..validators import validate_contract
 from ..zones_repo import (
     create_zone,
@@ -101,7 +102,7 @@ def create(
         center_lon=body.center.longitude,
         radius_meters=body.radius_meters,
         enabled=body.enabled,
-        schedule=body.schedule.model_dump() if body.schedule else None,
+        schedule=dump_json(body.schedule) if body.schedule else None,
         created_by=current["user_id"],
     )
     _contract_check(zone)
@@ -155,7 +156,7 @@ def patch(
         center_lon=body.center.longitude if body.center else None,
         radius_meters=body.radius_meters,
         enabled=body.enabled,
-        schedule=body.schedule.model_dump() if body.schedule else None,
+        schedule=dump_json(body.schedule) if body.schedule else None,
         clear_schedule=body.clear_schedule,
     )
     assert z is not None
