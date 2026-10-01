@@ -27,12 +27,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.autofill.ContentType
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.semantics.contentType
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -142,9 +139,7 @@ fun LoginScreen(
                             leadingIcon = { Icon(Icons.Filled.Person, contentDescription = null) },
                             singleLine = true,
                             enabled = ui.phase !is LoginPhase.Authenticating,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .semantics { contentType = ContentType.Name },
+                            modifier = Modifier.fillMaxWidth(),
                         )
                     }
 
@@ -160,9 +155,7 @@ fun LoginScreen(
                             imeAction = ImeAction.Next,
                         ),
                         enabled = ui.phase !is LoginPhase.Authenticating,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .semantics { contentType = ContentType.EmailAddress },
+                        modifier = Modifier.fillMaxWidth(),
                     )
 
                     // Password
@@ -193,14 +186,7 @@ fun LoginScreen(
                             onDone = { focus.clearFocus(); vm.submit() },
                         ),
                         enabled = ui.phase !is LoginPhase.Authenticating,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .semantics {
-                                contentType = if (ui.mode == AuthMode.REGISTER)
-                                    ContentType.NewPassword
-                                else
-                                    ContentType.Password
-                            },
+                        modifier = Modifier.fillMaxWidth(),
                     )
 
                     // Error
