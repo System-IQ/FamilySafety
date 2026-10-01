@@ -6,9 +6,11 @@ import android.content.SharedPreferences
 /**
  * Thin, typed wrapper around SharedPreferences.
  *
- * Only the essentials for now: API base URL + last known connection state.
- * No secrets are stored here (no tokens yet — will use EncryptedSharedPreferences
- * when auth lands in a future batch).
+ * Stores only non-secret app state:
+ *   - backend base URL
+ *   - last email
+ *   - last test timestamps
+ *   - whether the embedded server should run 24/7 (serverEnabled)
  */
 class AppPreferences(context: Context) {
 
@@ -40,11 +42,23 @@ class AppPreferences(context: Context) {
             prefs.edit().putLong(KEY_LAST_TEST_FAILURE, value).apply()
         }
 
+    /**
+     * Whether the embedded backend should be running.
+     * Written by ServerService on START/STOP.
+     * Read on app launch and on boot to decide auto-start.
+     */
+    var serverEnabled: Boolean
+        get() = prefs.getBoolean(KEY_SERVER_ENABLED, false)
+        set(value) {
+            prefs.edit().putBoolean(KEY_SERVER_ENABLED, value).apply()
+        }
+
     fun resetToDefaults() {
         prefs.edit()
             .remove(KEY_API_BASE_URL)
             .remove(KEY_LAST_TEST_SUCCESS)
             .remove(KEY_LAST_TEST_FAILURE)
+            .remove(KEY_SERVER_ENABLED)
             .apply()
     }
 
@@ -54,19 +68,15 @@ class AppPreferences(context: Context) {
         const val KEY_LAST_EMAIL = "last_email"
         const val KEY_LAST_TEST_SUCCESS = "last_test_success_ms"
         const val KEY_LAST_TEST_FAILURE = "last_test_failure_ms"
+        const val KEY_SERVER_ENABLED = "server_enabled"
 
-        /**
-         * Default points to the emulator loopback host (10.0.2.2 = host machine).
-         * Users on a real device must change this in Settings.
-         */
         const val DEFAULT_BASE_URL = "http://127.0.0.1:8000/"
 
         /**
          * Normalize a user-provided URL:
          * - trims whitespace
          * - ensures trailing slash
-         * - lowercases scheme + host only (path kept as-is)
-         * - refuses anything that is not http/https (throws)
+         * - refuses anything that is not http/https
          */
         fun normalize(raw: String): String {
             val trimmed = raw.trim()

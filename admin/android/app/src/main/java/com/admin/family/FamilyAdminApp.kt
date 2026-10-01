@@ -3,9 +3,7 @@ package com.admin.family
 import android.app.Application
 import android.util.Log
 import com.admin.family.data.api.ApiClient
-import com.admin.family.data.api.ControlClient
 import com.admin.family.data.auth.AccessCodeStore
-import com.admin.family.data.auth.ControlTokenStore
 import com.admin.family.data.config.ConfigStore
 import com.admin.family.data.prefs.AppPreferences
 import com.admin.family.data.repository.DefaultSettingsRepository
@@ -27,10 +25,6 @@ class FamilyAdminApp : Application() {
         private set
     lateinit var accessCodeStore: AccessCodeStore
         private set
-    lateinit var controlClient: ControlClient
-        private set
-    lateinit var controlTokenStore: ControlTokenStore
-        private set
     lateinit var tsnetBridge: TsnetBridge
         private set
     lateinit var tsnetProfiles: TsnetProfileStore
@@ -42,7 +36,7 @@ class FamilyAdminApp : Application() {
         super.onCreate()
         Log.i(TAG, "onCreate")
 
-        // 1. Embedded Python
+        // 1) Embedded Python runtime
         try {
             PythonServer.init(this)
             Log.i(TAG, "Python runtime started")
@@ -50,55 +44,90 @@ class FamilyAdminApp : Application() {
             Log.e(TAG, "Python init failed", t)
         }
 
-        // 2. DI
+        // 2) Dependency graph
         preferences = AppPreferences(this)
         settingsRepository = DefaultSettingsRepository(preferences)
         apiClient = ApiClient(preferences.apiBaseUrl)
         deviceRepository = DeviceRepository(apiClient)
         accessCodeStore = AccessCodeStore(this)
-        controlTokenStore = ControlTokenStore(this)
-        controlClient = ControlClient()
-        controlClient.token = controlTokenStore.token
         tsnetProfiles = TsnetProfileStore(this)
         configStore = ConfigStore(this)
         tsnetBridge = TsnetBridge(this)
 
-        // 3. Ensure an access code exists (auto-generated on first launch),
-        //    then configure the backend in the background. No PIN screen.
+        // 3) Prepare the embedded backend environment (paths, access code,
+        //    JWT secret) but DO NOT start uvicorn. Starting is controlled
+        //    exclusively by Server Info (START) via ServerService.
         val savedCode = accessCodeStore.code
-        if (!savedCode.isNullOrBlank()) {
-            bootstrapBackend(savedCode)
-        } else {
-            val fresh = accessCodeStore.generateAndSaveCodeIfNeeded()
-            bootstrapBackend(fresh)
-            Log.i(TAG, "auto-generated access code on first launch")
-        }
+        val code = if (!savedCode.isNullOrBlank()) savedCode
+                   else accessCodeStore.generateAndSaveCodeIfNeeded()
+        prepareBackend(code)
+        Log.i(TAG, "backend prepared, waiting for explicit START")
     }
 
     /**
-     * Configures embedded Python backend with the access code and
-     * kicks off uvicorn in a background thread.
-     *
-     * Safe to call multiple times — Python's configure() is idempotent.
+     * Sets env vars / paths / access code. Does NOT start uvicorn.
+     * Safe to call multiple times.
      */
-    fun bootstrapBackend(code: String) {
+    fun prepareBackend(code: String) {
         accessCodeStore.code = code
         apiClient.setAuthToken(code)
         try {
             PythonServer.configure(this, code)
         } catch (t: Throwable) {
             Log.e(TAG, "Python configure failed", t)
-            return
         }
-        Thread {
-            try {
-                val r = PythonServer.startBackendBlocking()
-                Log.i(TAG, "startBackend -> $r")
-            } catch (t: Throwable) {
-                Log.e(TAG, "backend start failed", t)
-            }
-        }.start()
     }
+
+    /**
+     * Starts uvicorn in a background thread. Called only from
+     * ServerService when the user presses START.
+     */
+    fun startEmbeddedServer(): String {
+        preferences.serverEnabled = true
+        return try {
+            val r = PythonServer.startBackendBlocking()
+            Log.i(TAG, "startEmbeddedServer -> $r")
+            r
+        } catch (t: Throwable) {
+            Log.e(TAG, "startEmbeddedServer failed", t)
+            "error: ${t.message}"
+        }
+    }
+
+    /**
+     * Requests a graceful shutdown of uvicorn.
+     * Called only from ServerService when the user presses STOP.
+     */
+    fun stopEmbeddedServer(): String {
+        preferences.serverEnabled = false
+        return try {
+            val r = PythonServer.stopBackendBlocking()
+            Log.i(TAG, "stopEmbeddedServer -> $r")
+            r
+        } catch (t: Throwable) {
+            Log.e(TAG, "stopEmbeddedServer failed", t)
+            "error: ${t.message}"
+        }
+    }
+
+    /**
+     * Blocking readiness probe used by ServerService to update the
+     * notification body without spinning up a coroutine.
+     */
+    fun isBackendReadyBlocking(timeoutSec: Double = 2.0): Boolean {
+        return try {
+            PythonServer.isBackendReadyBlocking(timeoutSec)
+        } catch (t: Throwable) {
+            Log.e(TAG, "isBackendReadyBlocking failed", t)
+            false
+        }
+    }
+
+    /**
+     * Backward-compat shim kept for AppNavigation.onBootstrapBackend.
+     * Prepares the environment only; it does not start the server.
+     */
+    fun bootstrapBackend(code: String) = prepareBackend(code)
 
     companion object { private const val TAG = "FamilyAdminApp" }
 }

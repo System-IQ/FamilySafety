@@ -1,150 +1,97 @@
 package com.admin.family.ui.server
 
+import android.app.Application
+import android.content.Context
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.admin.family.data.api.ControlClient
-import com.admin.family.data.auth.ControlTokenStore
+import com.admin.family.FamilyAdminApp
+import com.admin.family.service.ServerService
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
-class ServerInfoViewModel(
-    private val client: ControlClient,
-    private val tokenStore: ControlTokenStore,
-) : ViewModel() {
+/**
+ * Server Info state — controls the embedded backend + Foreground Service.
+ *
+ * Everything runs in-process through ServerService;
+ * no external agent, no token.
+ */
+data class ServerInfoUiState(
+    val serverEnabled: Boolean = false,     // persisted preference
+    val backendReady: Boolean = false,      // uvicorn reachable on 127.0.0.1:8000
+    val busy: Boolean = false,              // operation in progress
+    val uptimeSeconds: Long = 0L,
+    val lastMessage: String? = null,
+    val fatalError: String? = null,
+)
+
+class ServerInfoViewModel(app: Application) : AndroidViewModel(app) {
+
+    private val adminApp: FamilyAdminApp get() = getApplication()
 
     private val _ui = MutableStateFlow(
-        ServerInfoUiState(
-            tokenSaved = tokenStore.isConfigured(),
-        )
+        ServerInfoUiState(serverEnabled = adminApp.preferences.serverEnabled)
     )
     val ui: StateFlow<ServerInfoUiState> = _ui.asStateFlow()
 
     init {
-        client.token = tokenStore.token
-        refresh()
-    }
-
-    fun onTokenInputChanged(v: String) = _ui.update {
-        it.copy(tokenInput = v.trim(), lastMessage = null)
-    }
-
-    fun saveToken() {
-        val t = _ui.value.tokenInput
-        if (t.isBlank()) return
-        tokenStore.token = t
-        client.token = t
-        _ui.update {
-            it.copy(tokenSaved = true, tokenInput = "", lastMessage = "Token saved")
-        }
-        refresh()
-    }
-
-    fun clearToken() {
-        tokenStore.clear()
-        client.token = null
-        _ui.update {
-            it.copy(tokenSaved = false, agentReachable = false, status = null, lastMessage = "Token cleared")
+        // Background poller: every 2s update backendReady + uptime
+        viewModelScope.launch {
+            while (true) {
+                refresh()
+                delay(2_000L)
+            }
         }
     }
 
     fun refresh() {
-        viewModelScope.launch {
-            try {
-                val reachable = client.ping()
-                if (!reachable) {
-                    _ui.update {
-                        it.copy(
-                            agentReachable = false,
-                            status = null,
-                            lastMessage = "Control agent unreachable (is Termux running?)",
-                        )
-                    }
-                    return@launch
-                }
-                _ui.update { it.copy(agentReachable = true) }
+        val enabled = adminApp.preferences.serverEnabled
+        val ready = if (enabled) {
+            withContext(Dispatchers.IO) { adminApp.isBackendReadyBlocking(0.6) }
+        } else false
+        _ui.update {
+            it.copy(serverEnabled = enabled, backendReady = ready)
+        }
+    }
 
-                if (!tokenStore.isConfigured()) {
-                    _ui.update { it.copy(lastMessage = "Enter the fs-control token to continue") }
-                    return@launch
-                }
-                try {
-                    val s = client.status()
-                    _ui.update { it.copy(status = s, lastMessage = null) }
-                } catch (t: Throwable) {
-                    _ui.update { it.copy(lastMessage = t.message ?: "Cannot read status") }
-                }
-            } catch (t: Throwable) {
-                _ui.update {
-                    it.copy(agentReachable = false, lastMessage = t.message ?: "Unreachable")
-                }
+    fun startServer(context: Context) {
+        if (_ui.value.busy) return
+        _ui.update { it.copy(busy = true, lastMessage = "Starting server…", fatalError = null) }
+        ServerService.start(context)
+        viewModelScope.launch {
+            delay(3_000L)
+            _ui.update {
+                it.copy(busy = false, lastMessage = "Server start requested")
             }
         }
     }
 
-    fun startServer() {
-        if (!tokenStore.isConfigured()) {
-            _ui.update { it.copy(lastMessage = "Save the token first") }
-            return
-        }
-        _ui.update { it.copy(phase = ServerInfoPhase.Starting, lastMessage = "Starting…") }
+    fun stopServer(context: Context) {
+        if (_ui.value.busy) return
+        _ui.update { it.copy(busy = true, lastMessage = "Stopping server…", fatalError = null) }
+        ServerService.stop(context)
         viewModelScope.launch {
-            try {
-                val r = client.start()
-                _ui.update {
-                    it.copy(
-                        phase = ServerInfoPhase.Idle,
-                        status = r.status,
-                        lastMessage = if (r.ok) "Started in ${r.durationMs} ms" else "Start failed",
-                    )
-                }
-            } catch (t: Throwable) {
-                _ui.update {
-                    it.copy(
-                        phase = ServerInfoPhase.Error(t.message ?: "Start failed"),
-                        lastMessage = t.message ?: "Start failed",
-                    )
-                }
+            delay(2_000L)
+            _ui.update {
+                it.copy(busy = false, lastMessage = "Server stop requested")
             }
         }
     }
 
-    fun stopServer() {
-        if (!tokenStore.isConfigured()) {
-            _ui.update { it.copy(lastMessage = "Save the token first") }
-            return
-        }
-        _ui.update { it.copy(phase = ServerInfoPhase.Stopping, lastMessage = "Stopping…") }
-        viewModelScope.launch {
-            try {
-                val r = client.stop()
-                _ui.update {
-                    it.copy(
-                        phase = ServerInfoPhase.Idle,
-                        status = r.status,
-                        lastMessage = if (r.ok) "Stopped in ${r.durationMs} ms" else "Stop failed",
-                    )
-                }
-            } catch (t: Throwable) {
-                _ui.update {
-                    it.copy(
-                        phase = ServerInfoPhase.Error(t.message ?: "Stop failed"),
-                        lastMessage = t.message ?: "Stop failed",
-                    )
-                }
-            }
-        }
-    }
+    fun clearMessage() = _ui.update { it.copy(lastMessage = null) }
 }
 
 class ServerInfoViewModelFactory(
-    private val client: ControlClient,
-    private val tokenStore: ControlTokenStore,
+    private val app: Application,
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T =
-        ServerInfoViewModel(client, tokenStore) as T
+        ServerInfoViewModel(app) as T
 }

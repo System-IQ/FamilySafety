@@ -84,12 +84,42 @@ object PythonServer {
         }
     }
 
+    /** Blocking variant of stopBackend for use from non-coroutine code. */
+    fun stopBackendBlocking(): String {
+        return try {
+            getModule().callAttr("stop_backend").toString()
+        } catch (t: Throwable) {
+            Log.e(TAG, "stopBackendBlocking failed", t)
+            "error: ${t.message}"
+        }
+    }
+
     /** Blocking call used only from a plain thread in Application.onCreate. */
     fun startBackendBlocking(): String {
         return try {
             getModule().callAttr("start_backend").toString()
         } catch (t: Throwable) {
             Log.e(TAG, "startBackendBlocking failed", t)
+            "error: ${t.message}"
+        }
+    }
+
+    /** Blocking check — useful from Service without coroutine scope. */
+    fun isBackendReadyBlocking(timeoutSec: Double = 2.0): Boolean {
+        return try {
+            getModule().callAttr("is_backend_ready", timeoutSec)
+                .toJava(Boolean::class.java)
+        } catch (t: Throwable) {
+            Log.e(TAG, "isBackendReadyBlocking failed", t)
+            false
+        }
+    }
+
+    /** Blocking status dict (for logging). */
+    fun statusBlocking(): String {
+        return try {
+            getModule().callAttr("get_status").toString()
+        } catch (t: Throwable) {
             "error: ${t.message}"
         }
     }

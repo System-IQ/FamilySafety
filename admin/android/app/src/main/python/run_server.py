@@ -19,6 +19,7 @@ _last_error: str = ""
 _configured: bool = False
 _host: str = "127.0.0.1"
 _port: int = 8000
+_server_instance = None  # uvicorn.Server — used for graceful shutdown
 
 
 def _log(msg: str) -> None:
@@ -92,6 +93,8 @@ def _run_uvicorn() -> None:
         )
         server = uvicorn.Server(config)
         server.install_signal_handlers = lambda: None  # type: ignore[assignment]
+        global _server_instance
+        _server_instance = server
 
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -152,5 +155,26 @@ def get_status() -> dict:
 
 
 def stop_backend() -> str:
-    _log("stop_backend: not fully implemented (daemon thread)")
-    return "not_implemented"
+    """Requests graceful shutdown of uvicorn.
+
+    Sets server.should_exit = True; uvicorn will finish in-flight
+    requests and then exit its serve() loop. The daemon thread
+    terminates on its own.
+    """
+    global _server_instance
+    if _server_instance is None:
+        _log("stop_backend: no server instance")
+        return "not_running"
+
+    _log("stop_backend: requesting graceful shutdown")
+    _server_instance.should_exit = True
+    # Wait up to 5s for the thread to finish
+    deadline = time.time() + 5.0
+    while time.time() < deadline:
+        if _server_thread is None or not _server_thread.is_alive():
+            _server_instance = None
+            _log("stop_backend: stopped cleanly")
+            return "stopped"
+        time.sleep(0.1)
+    _log("stop_backend: timeout (thread still alive)")
+    return "timeout"

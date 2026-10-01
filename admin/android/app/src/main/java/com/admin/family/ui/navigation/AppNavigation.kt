@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
@@ -13,9 +14,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.admin.family.data.api.ApiClient
-import com.admin.family.data.api.ControlClient
 import com.admin.family.data.auth.AccessCodeStore
-import com.admin.family.data.auth.ControlTokenStore
 import com.admin.family.data.config.ConfigStore
 import com.admin.family.data.prefs.AppPreferences
 import com.admin.family.data.repository.DeviceRepository
@@ -50,8 +49,6 @@ fun AppNavigation(
     apiClient: ApiClient,
     accessCodeStore: AccessCodeStore,
     preferences: AppPreferences,
-    controlClient: ControlClient,
-    controlTokenStore: ControlTokenStore,
     configStore: ConfigStore,
     onBootstrapBackend: (String) -> Unit,
 ) {
@@ -114,8 +111,9 @@ fun AppNavigation(
         //  SERVER INFO
         // ────────────────────────────────────────────────────
         composable(Routes.SERVER_INFO) {
+            val app = LocalContext.current.applicationContext as com.admin.family.FamilyAdminApp
             val vm: ServerInfoViewModel = viewModel(
-                factory = ServerInfoViewModelFactory(controlClient, controlTokenStore),
+                factory = ServerInfoViewModelFactory(app),
             )
             ServerInfoScreen(vm = vm, onBack = { navController.popBackStack() })
         }

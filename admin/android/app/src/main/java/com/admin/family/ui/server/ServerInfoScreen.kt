@@ -1,6 +1,9 @@
 package com.admin.family.ui.server
 
-import androidx.compose.animation.AnimatedVisibility
+import android.Manifest
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -16,9 +19,11 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -34,6 +39,18 @@ fun ServerInfoScreen(
     onBack: () -> Unit,
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+
+    // Ask for notification permission on Android 13+ the first time we open this screen
+    val permLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { /* result ignored — server will still run, just no notification UI */ }
+
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -62,24 +79,10 @@ fun ServerInfoScreen(
         ) {
             Spacer(Modifier.height(4.dp))
 
-            // ── Agent connection ──
-            AgentCard(ui)
+            ServerStatusCard(ui)
+            ControlsCard(ui, vm, context)
 
-            // ── Token setup (only if not saved) ──
-            if (!ui.tokenSaved) {
-                TokenSetupCard(ui, vm)
-            } else {
-                TokenManageCard(ui, vm)
-            }
-
-            // ── Status ──
-            ui.status?.let { StatusCard(it) }
-
-            // ── Actions ──
-            ActionsCard(ui, vm)
-
-            // ── Last message ──
-            ui.lastMessage?.let { LastMessageCard(it, ui.phase) }
+            ui.lastMessage?.let { MessageCard(it) }
 
             Spacer(Modifier.height(20.dp))
         }
@@ -87,129 +90,39 @@ fun ServerInfoScreen(
 }
 
 @Composable
-private fun AgentCard(ui: ServerInfoUiState) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            val (label, color) = when {
-                ui.agentReachable -> "Agent reachable" to Success
-                else -> "Agent unreachable" to Danger
-            }
-            Box(
-                Modifier
-                    .size(10.dp)
-                    .background(color, RoundedCornerShape(50)),
-            )
-            Spacer(Modifier.width(10.dp))
-            Column {
-                Text(
-                    label,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = color,
-                )
-                Text(
-                    "127.0.0.1:9999",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontFamily = FontFamily.Monospace,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun TokenSetupCard(ui: ServerInfoUiState, vm: ServerInfoViewModel) {
+private fun ServerStatusCard(ui: ServerInfoUiState) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
             Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
-                "Control Token",
+                "Embedded Server",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
             )
+
+            StatusRow(
+                label = "Service",
+                value = if (ui.serverEnabled) "ENABLED" else "DISABLED",
+                color = if (ui.serverEnabled) Success else Warning,
+            )
+            StatusRow(
+                label = "Backend (127.0.0.1:8000)",
+                value = if (ui.backendReady) "UP" else "DOWN",
+                color = if (ui.backendReady) Success else Danger,
+            )
+            StatusRow(
+                label = "Runs 24/7 (Foreground Service)",
+                value = if (ui.serverEnabled) "YES" else "—",
+                color = if (ui.serverEnabled) Success
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             Text(
-                "Paste the token from Termux:  cat ~/.fsserver/control-token",
+                "The server keeps running after you close the app. " +
+                        "Use the notification's Stop button or the button below to stop it.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            OutlinedTextField(
-                value = ui.tokenInput,
-                onValueChange = vm::onTokenInputChanged,
-                label = { Text("Token (64 hex chars)") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-            ) {
-                Button(
-                    onClick = vm::saveToken,
-                    enabled = ui.tokenInput.length >= 32,
-                ) {
-                    Text("Save token")
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun TokenManageCard(ui: ServerInfoUiState, vm: ServerInfoViewModel) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = Success)
-            Spacer(Modifier.width(10.dp))
-            Column(Modifier.weight(1f)) {
-                Text("Token saved", fontWeight = FontWeight.SemiBold)
-                Text(
-                    "••••••••  ·  shared with fs-control",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            TextButton(onClick = vm::clearToken) {
-                Text("Clear")
-            }
-        }
-    }
-}
-
-@Composable
-private fun StatusCard(status: com.admin.family.data.api.ControlStatus) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Text(
-                "Server Status",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
-            StatusRow(
-                label = "Overall",
-                value = if (status.running) "RUNNING" else "STOPPED",
-                color = if (status.running) Success else Warning,
-            )
-            StatusRow(
-                label = "Backend (port 8000)",
-                value = if (status.backend) "UP" else "DOWN",
-                color = if (status.backend) Success else Danger,
-            )
-            StatusRow(
-                label = "Tailscale IP",
-                value = status.tailscaleIp.ifBlank { "—" },
-                color = if (status.tailscaleIp.isNotBlank()) Success else MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
@@ -234,7 +147,11 @@ private fun StatusRow(label: String, value: String, color: androidx.compose.ui.g
 }
 
 @Composable
-private fun ActionsCard(ui: ServerInfoUiState, vm: ServerInfoViewModel) {
+private fun ControlsCard(
+    ui: ServerInfoUiState,
+    vm: ServerInfoViewModel,
+    context: android.content.Context,
+) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
             Modifier.padding(16.dp),
@@ -247,72 +164,48 @@ private fun ActionsCard(ui: ServerInfoUiState, vm: ServerInfoViewModel) {
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(
-                    onClick = vm::startServer,
-                    enabled = ui.tokenSaved && !ui.isBusy &&
-                            (ui.status?.running != true),
+                    onClick = { vm.startServer(context) },
+                    enabled = !ui.busy && !ui.serverEnabled,
                     modifier = Modifier.weight(1f),
                 ) {
-                    if (ui.phase is ServerInfoPhase.Starting) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.onPrimary,
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Text("Starting…")
-                    } else {
-                        Icon(Icons.Filled.PlayArrow, contentDescription = null)
-                        Spacer(Modifier.width(6.dp))
-                        Text("Start")
-                    }
+                    Icon(Icons.Filled.PlayArrow, contentDescription = null)
+                    Spacer(Modifier.width(6.dp))
+                    Text("Start")
                 }
                 Button(
-                    onClick = vm::stopServer,
-                    enabled = ui.tokenSaved && !ui.isBusy &&
-                            (ui.status?.running == true),
+                    onClick = { vm.stopServer(context) },
+                    enabled = !ui.busy && ui.serverEnabled,
                     modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                    ),
                 ) {
-                    if (ui.phase is ServerInfoPhase.Stopping) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.onPrimary,
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Text("Stopping…")
-                    } else {
-                        Icon(Icons.Filled.Stop, contentDescription = null)
-                        Spacer(Modifier.width(6.dp))
-                        Text("Stop")
-                    }
+                    Icon(Icons.Filled.Stop, contentDescription = null)
+                    Spacer(Modifier.width(6.dp))
+                    Text("Stop")
                 }
             }
-            Text(
-                "Commands run in Termux (fs-control agent). " +
-                        "Stop keeps the agent alive so you can restart.",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
     }
 }
 
 @Composable
-private fun LastMessageCard(message: String, phase: ServerInfoPhase) {
-    val (color, icon) = when (phase) {
-        is ServerInfoPhase.Error -> Danger to Icons.Filled.Error
-        else -> Warning to Icons.Filled.Cloud
-    }
+private fun MessageCard(message: String) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = color.copy(alpha = 0.12f),
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
         ),
     ) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(18.dp))
+            Icon(
+                Icons.Filled.Cloud,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+            )
             Spacer(Modifier.width(10.dp))
-            Text(message, style = MaterialTheme.typography.bodySmall, color = color)
+            Text(message, style = MaterialTheme.typography.bodySmall)
         }
     }
 }

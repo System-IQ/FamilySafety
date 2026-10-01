@@ -14,7 +14,7 @@ import java.util.UUID
  *   - id            — stable UUID
  *   - name          — user-visible label
  *   - backendUrl    — full URL to the FamilySafety backend
- *   - controlToken  — token for the local fs-control agent (optional)
+ *   - backendUrl    — HTTP endpoint of the embedded or remote backend
  *   - tunnelProvider— "cloudflare" | "ngrok" | null
  *   - tunnelUrl     — public URL produced by the tunnel (optional)
  *   - createdAt     — ms epoch
