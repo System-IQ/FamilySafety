@@ -54,6 +54,24 @@ class AccessCodeStore(context: Context) {
         get() = prefs.getString(KEY_BACKUP_CODES, null)
         set(v) { prefs.edit().putString(KEY_BACKUP_CODES, v).apply() }
 
+    // ─── Session timestamp ───
+    var lastUnlockAt: Long
+        get() = prefs.getLong(KEY_LAST_UNLOCK, 0L)
+        set(v) { prefs.edit().putLong(KEY_LAST_UNLOCK, v).apply() }
+
+    fun isSessionValid(): Boolean {
+        val t = lastUnlockAt
+        return t > 0L && (System.currentTimeMillis() - t) < SESSION_TIMEOUT_MS
+    }
+
+    fun markUnlocked() {
+        lastUnlockAt = System.currentTimeMillis()
+    }
+
+    fun invalidateSession() {
+        lastUnlockAt = 0L
+    }
+
     // ─── State queries ───
     fun isConfigured(): Boolean = !code.isNullOrBlank() && !pinHash.isNullOrBlank()
     fun hasPin(): Boolean = !pinHash.isNullOrBlank()
@@ -245,6 +263,7 @@ class AccessCodeStore(context: Context) {
         private const val KEY_BIO = "biometric_enabled"
         private const val KEY_EMAIL = "recovery_email"
         private const val KEY_BACKUP_CODES = "backup_codes_v1"
+        private const val KEY_LAST_UNLOCK = "last_unlock_at"
 
         const val PIN_LENGTH = 6
 
@@ -261,5 +280,8 @@ class AccessCodeStore(context: Context) {
         private const val BACKUP_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
 
         private const val ITERATIONS = 100_000
+
+        /** Session stays unlocked for 30 minutes of inactivity. */
+        const val SESSION_TIMEOUT_MS = 30L * 60L * 1000L
     }
 }

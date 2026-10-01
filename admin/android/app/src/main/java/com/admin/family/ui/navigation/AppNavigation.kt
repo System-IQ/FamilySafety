@@ -1,6 +1,7 @@
 package com.admin.family.ui.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -8,6 +9,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -41,6 +45,7 @@ import com.admin.family.ui.server.ServerInfoViewModelFactory
 import com.admin.family.ui.settings.SettingsScreen
 import com.admin.family.ui.settings.SettingsViewModel
 import com.admin.family.ui.settings.SettingsViewModelFactory
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 object Routes {
@@ -73,9 +78,14 @@ fun AppNavigation(
     val scope = rememberCoroutineScope()
     val biometric = remember { BiometricHelper(activity) }
 
-    // Where to start
+    // Decide where to start:
+    //  • No PIN yet → PIN_SETUP (first launch only)
+    //  • PIN + session still valid → CONTROL_ROOM directly
+    //  • PIN + biometric enabled → BIOMETRIC_GATE
+    //  • Otherwise → PIN_ENTRY
     val startDestination = when {
         !accessCodeStore.isConfigured() -> Routes.PIN_SETUP
+        accessCodeStore.isSessionValid() -> Routes.CONTROL_ROOM
         accessCodeStore.biometricEnabled -> Routes.BIOMETRIC_GATE
         else -> Routes.PIN_ENTRY
     }
@@ -84,21 +94,58 @@ fun AppNavigation(
     var pinEntryError by remember { mutableStateOf<String?>(null) }
     var generatedBackupCodes by remember { mutableStateOf<List<String>>(emptyList()) }
 
+    fun isProtectedRoute(route: String?): Boolean = route == Routes.CONTROL_ROOM ||
+            route == Routes.SETTINGS ||
+            route == Routes.SERVER_DASHBOARD ||
+            route == Routes.SERVER_INFO ||
+            route == Routes.CONFIGURATIONS
+
+    fun lockScreen() {
+        pinEntryError = null
+        val target = if (accessCodeStore.biometricEnabled) Routes.BIOMETRIC_GATE else Routes.PIN_ENTRY
+        navController.navigate(target) {
+            popUpTo(0) { inclusive = true }
+        }
+    }
+
+    // ─── 30-minute idle timer while app is in foreground ───
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(15_000L)
+            val route = navController.currentDestination?.route
+            if (isProtectedRoute(route) && !accessCodeStore.isSessionValid()) {
+                lockScreen()
+            }
+        }
+    }
+
+    // ─── Re-lock when returning from background after timeout ───
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_START) {
+                val route = navController.currentDestination?.route
+                if (isProtectedRoute(route) && !accessCodeStore.isSessionValid()) {
+                    lockScreen()
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     NavHost(navController = navController, startDestination = startDestination) {
 
-        // ────────────────────────────────────────────────────
-        //  1. PIN SETUP (first-time only)
-        // ────────────────────────────────────────────────────
+        // ─── 1. PIN SETUP (first-time only) ───
         composable(Routes.PIN_SETUP) {
             PinSetupScreen(
                 isReset = false,
                 onCancel = null,
                 onPinReady = { pin ->
                     if (accessCodeStore.setupPin(pin)) {
-                        // Generate backup codes
+                        accessCodeStore.markUnlocked()
                         val codes = accessCodeStore.generateAndStoreBackupCodes()
                         generatedBackupCodes = codes
-                        // Bootstrap backend with the fresh access code
                         val newCode = accessCodeStore.code
                         if (!newCode.isNullOrBlank()) {
                             onBootstrapBackend(newCode)
@@ -111,13 +158,12 @@ fun AppNavigation(
             )
         }
 
-        // ────────────────────────────────────────────────────
-        //  2. BACKUP CODES (one-time display)
-        // ────────────────────────────────────────────────────
+        // ─── 2. BACKUP CODES (one-time display) ───
         composable(Routes.BACKUP_CODES) {
             BackupCodesScreen(
                 codes = generatedBackupCodes,
                 onDone = {
+                    accessCodeStore.markUnlocked()
                     navController.navigate(Routes.CONTROL_ROOM) {
                         popUpTo(0) { inclusive = true }
                     }
@@ -125,9 +171,7 @@ fun AppNavigation(
             )
         }
 
-        // ────────────────────────────────────────────────────
-        //  3. PIN ENTRY (subsequent unlocks)
-        // ────────────────────────────────────────────────────
+        // ─── 3. PIN ENTRY ───
         composable(Routes.PIN_ENTRY) {
             PinEntryScreen(
                 errorMessage = pinEntryError,
@@ -136,12 +180,13 @@ fun AppNavigation(
                 onUnlock = { pin ->
                     pinEntryError = null
                     if (accessCodeStore.verifyPin(pin)) {
+                        accessCodeStore.markUnlocked()
                         val code = accessCodeStore.code
                         if (!code.isNullOrBlank()) {
                             onBootstrapBackend(code)
                         }
                         navController.navigate(Routes.CONTROL_ROOM) {
-                            popUpTo(Routes.PIN_ENTRY) { inclusive = true }
+                            popUpTo(0) { inclusive = true }
                         }
                     } else {
                         pinEntryError = "Incorrect PIN"
@@ -159,9 +204,10 @@ fun AppNavigation(
                             onSuccess = {
                                 val code = accessCodeStore.code
                                 if (!code.isNullOrBlank()) {
+                                    accessCodeStore.markUnlocked()
                                     onBootstrapBackend(code)
                                     navController.navigate(Routes.CONTROL_ROOM) {
-                                        popUpTo(Routes.PIN_ENTRY) { inclusive = true }
+                                        popUpTo(0) { inclusive = true }
                                     }
                                 } else {
                                     pinEntryError = "No access code saved"
@@ -176,9 +222,7 @@ fun AppNavigation(
             )
         }
 
-        // ────────────────────────────────────────────────────
-        //  4. FORGOT PIN (backup codes recovery)
-        // ────────────────────────────────────────────────────
+        // ─── 4. FORGOT PIN (backup codes recovery) ───
         composable(Routes.FORGOT_PIN) {
             ForgotPinScreen(
                 remainingCodes = accessCodeStore.backupCodesRemaining(),
@@ -187,6 +231,7 @@ fun AppNavigation(
                 },
                 setNewPin = { newPin ->
                     accessCodeStore.resetWithNewPin(newPin)
+                    accessCodeStore.markUnlocked()
                 },
                 onBack = {
                     navController.popBackStack()
@@ -194,9 +239,7 @@ fun AppNavigation(
             )
         }
 
-        // ────────────────────────────────────────────────────
-        //  5. BIOMETRIC GATE (quick unlock)
-        // ────────────────────────────────────────────────────
+        // ─── 5. BIOMETRIC GATE ───
         composable(Routes.BIOMETRIC_GATE) {
             val availability = remember { biometric.isAvailable() }
 
@@ -207,14 +250,15 @@ fun AppNavigation(
                         onSuccess = {
                             val code = accessCodeStore.code
                             if (!code.isNullOrBlank()) {
+                                accessCodeStore.markUnlocked()
                                 onBootstrapBackend(code)
                                 navController.navigate(Routes.CONTROL_ROOM) {
-                                    popUpTo(Routes.BIOMETRIC_GATE) { inclusive = true }
+                                    popUpTo(0) { inclusive = true }
                                 }
                             } else {
                                 biometricError = "No access code saved"
                                 navController.navigate(Routes.PIN_ENTRY) {
-                                    popUpTo(Routes.BIOMETRIC_GATE) { inclusive = true }
+                                    popUpTo(0) { inclusive = true }
                                 }
                             }
                         },
@@ -230,129 +274,100 @@ fun AppNavigation(
                 message = biometricError,
                 onRetry = {
                     biometricError = null
-                    scope.launch {
-                        val r = biometric.authenticate()
-                        r.fold(
-                            onSuccess = {
-                                val code = accessCodeStore.code
-                                if (!code.isNullOrBlank()) {
-                                    onBootstrapBackend(code)
-                                    navController.navigate(Routes.CONTROL_ROOM) {
-                                        popUpTo(Routes.BIOMETRIC_GATE) { inclusive = true }
+                    if (availability == BiometricAvailability.AVAILABLE) {
+                        scope.launch {
+                            val r = biometric.authenticate()
+                            r.fold(
+                                onSuccess = {
+                                    val code = accessCodeStore.code
+                                    if (!code.isNullOrBlank()) {
+                                        accessCodeStore.markUnlocked()
+                                        onBootstrapBackend(code)
+                                        navController.navigate(Routes.CONTROL_ROOM) {
+                                            popUpTo(0) { inclusive = true }
+                                        }
                                     }
-                                }
-                            },
-                            onFailure = { t ->
-                                biometricError = t.message ?: "Authentication failed"
-                            },
-                        )
+                                },
+                                onFailure = { t -> biometricError = t.message ?: "Authentication failed" },
+                            )
+                        }
                     }
                 },
-                onFallbackToCode = {
+                onUsePin = {
+                    biometricError = null
                     navController.navigate(Routes.PIN_ENTRY) {
-                        popUpTo(Routes.BIOMETRIC_GATE) { inclusive = true }
-                    }
-                },
-            )
-        }
-
-        // ────────────────────────────────────────────────────
-        //  6. CONTROL ROOM
-        // ────────────────────────────────────────────────────
-        composable(Routes.CONTROL_ROOM) {
-            val vm: ControlRoomViewModel = viewModel(
-                factory = ControlRoomViewModelFactory(deviceRepository),
-            )
-            ControlRoomScreen(
-                vm = vm,
-                onOpenSettings = { navController.navigate(Routes.SETTINGS) },
-                onOpenServer = { navController.navigate(Routes.SERVER_DASHBOARD) },
-                onOpenConfigurations = { navController.navigate(Routes.CONFIGURATIONS) },
-                onLogout = {
-                    accessCodeStore.clear()
-                    apiClient.setAuthToken(null)
-                    navController.navigate(Routes.PIN_SETUP) {
                         popUpTo(0) { inclusive = true }
                     }
                 },
             )
         }
 
-        // ────────────────────────────────────────────────────
-        //  7. SETTINGS
-        // ────────────────────────────────────────────────────
+        // ─── 6. CONTROL ROOM ───
+        composable(Routes.CONTROL_ROOM) {
+            val vm: ControlRoomViewModel = viewModel(
+                factory = ControlRoomViewModelFactory(
+                    deviceRepository = deviceRepository,
+                    controlClient = controlClient,
+                    controlTokenStore = controlTokenStore,
+                )
+            )
+            ControlRoomScreen(
+                viewModel = vm,
+                onOpenSettings = { navController.navigate(Routes.SETTINGS) },
+                onOpenServerInfo = { navController.navigate(Routes.SERVER_INFO) },
+                onOpenServerDashboard = { navController.navigate(Routes.SERVER_DASHBOARD) },
+                onOpenConfigurations = { navController.navigate(Routes.CONFIGURATIONS) },
+            )
+        }
+
+        // ─── 7. SETTINGS ───
         composable(Routes.SETTINGS) {
             val vm: SettingsViewModel = viewModel(
-                factory = SettingsViewModelFactory(settingsRepository, apiClient),
+                factory = SettingsViewModelFactory(
+                    settingsRepository = settingsRepository,
+                    preferences = preferences,
+                    accessCodeStore = accessCodeStore,
+                )
             )
-            SettingsScreen(viewModel = vm, onBack = { navController.popBackStack() })
+            SettingsScreen(
+                viewModel = vm,
+                onBack = { navController.popBackStack() },
+            )
         }
 
-        // ────────────────────────────────────────────────────
-        //  8. SERVER DASHBOARD
-        // ────────────────────────────────────────────────────
+        // ─── 8. SERVER DASHBOARD ───
         composable(Routes.SERVER_DASHBOARD) {
             val vm: ServerDashboardViewModel = viewModel(
-                factory = ServerDashboardViewModelFactory(apiClient),
+                factory = ServerDashboardViewModelFactory(
+                    deviceRepository = deviceRepository,
+                    settingsRepository = settingsRepository,
+                    apiClient = apiClient,
+                )
             )
             ServerDashboardScreen(
-                vm = vm,
+                viewModel = vm,
                 onBack = { navController.popBackStack() },
-                onOpenServerInfo = { navController.navigate(Routes.SERVER_INFO) },
             )
         }
 
-        // ────────────────────────────────────────────────────
-        //  9. SERVER INFO
-        // ────────────────────────────────────────────────────
+        // ─── 9. SERVER INFO ───
         composable(Routes.SERVER_INFO) {
             val vm: ServerInfoViewModel = viewModel(
-                factory = ServerInfoViewModelFactory(controlClient, controlTokenStore),
+                factory = ServerInfoViewModelFactory(
+                    settingsRepository = settingsRepository,
+                    apiClient = apiClient,
+                )
             )
-            ServerInfoScreen(vm = vm, onBack = { navController.popBackStack() })
+            ServerInfoScreen(
+                viewModel = vm,
+                onBack = { navController.popBackStack() },
+            )
         }
 
-        // ────────────────────────────────────────────────────
-        //  10. CONFIGURATIONS
-        // ────────────────────────────────────────────────────
+        // ─── 10. CONFIGURATIONS ───
         composable(Routes.CONFIGURATIONS) {
-            var configsList by remember { mutableStateOf(configStore.list()) }
-            var activeId by remember { mutableStateOf(configStore.activeId()) }
-
-            fun refresh() {
-                configsList = configStore.list()
-                activeId = configStore.activeId()
-            }
-
             ConfigurationsScreen(
-                configs = configsList,
-                activeId = activeId,
-                onCreate = { name, url ->
-                    val cfg = configStore.create(name, url)
-                    // Activate the newly created config
-                    configStore.setActive(cfg.id)
-                    // Apply to ApiClient immediately
-                    apiClient.updateBaseUrl(cfg.backendUrl)
-                    refresh()
-                },
-                onActivate = { id ->
-                    configStore.setActive(id)
-                    configStore.get(id)?.let { cfg ->
-                        apiClient.updateBaseUrl(cfg.backendUrl)
-                    }
-                    refresh()
-                },
-                onDelete = { id ->
-                    configStore.delete(id)
-                    refresh()
-                },
-                onUpdate = { updated ->
-                    configStore.save(updated)
-                    if (updated.id == activeId) {
-                        apiClient.updateBaseUrl(updated.backendUrl)
-                    }
-                    refresh()
-                },
+                configStore = configStore,
                 onBack = { navController.popBackStack() },
             )
         }
