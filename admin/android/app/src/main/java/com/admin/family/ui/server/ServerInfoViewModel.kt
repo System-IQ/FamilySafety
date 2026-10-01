@@ -52,12 +52,14 @@ class ServerInfoViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun refresh() {
-        val enabled = adminApp.preferences.serverEnabled
-        val ready = if (enabled) {
-            withContext(Dispatchers.IO) { adminApp.isBackendReadyBlocking(0.6) }
-        } else false
-        _ui.update {
-            it.copy(serverEnabled = enabled, backendReady = ready)
+        viewModelScope.launch {
+            val enabled = adminApp.preferences.serverEnabled
+            val ready = if (enabled) {
+                withContext(Dispatchers.IO) { adminApp.isBackendReadyBlocking(0.6) }
+            } else false
+            _ui.update {
+                it.copy(serverEnabled = enabled, backendReady = ready)
+            }
         }
     }
 
