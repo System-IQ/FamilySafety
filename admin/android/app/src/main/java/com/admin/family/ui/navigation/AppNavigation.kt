@@ -220,8 +220,9 @@ fun AppNavigation(
                     accessCodeStore.verifyAndBurnBackupCode(input)
                 },
                 setNewPin = { newPin ->
-                    accessCodeStore.resetWithNewPin(newPin)
-                    accessCodeStore.markUnlocked()
+                    val ok = accessCodeStore.resetWithNewPin(newPin)
+                    if (ok) accessCodeStore.markUnlocked()
+                    ok
                 },
                 onBack = {
                     navController.popBackStack()
