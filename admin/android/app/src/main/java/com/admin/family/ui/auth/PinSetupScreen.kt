@@ -27,11 +27,9 @@ import com.admin.family.data.auth.AccessCodeStore
 import com.admin.family.ui.theme.Danger
 
 /**
- * First-time setup: create a 6-digit PIN, then confirm it.
- * On success calls onPinReady(pin) — caller stores it via AccessCodeStore.setupPin().
+ * First-time setup (or PIN reset): enter a 6-digit PIN and confirm it on the same page.
+ * On success calls onPinReady(pin) — the caller stores it via AccessCodeStore.setupPin().
  */
-private enum class PinSetupStep { ENTER, CONFIRM }
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PinSetupScreen(
@@ -39,7 +37,6 @@ fun PinSetupScreen(
     onCancel: (() -> Unit)? = null,
     isReset: Boolean = false,
 ) {
-    var step by remember { mutableStateOf(PinSetupStep.ENTER) }
     var pin by remember { mutableStateOf("") }
     var confirm by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
@@ -100,24 +97,28 @@ fun PinSetupScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     Text(
-                        if (step == PinSetupStep.ENTER) "Choose a 6-digit PIN" else "Confirm your PIN",
+                        "Choose a 6-digit PIN",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                     )
                     Text(
-                        if (step == PinSetupStep.ENTER)
-                            "This PIN unlocks the app on this device."
-                        else
-                            "Enter the same 6 digits again.",
+                        "Enter the PIN twice to confirm. It unlocks the app on this device.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
 
-                    if (step == PinSetupStep.ENTER) {
-                        PinField(value = pin, onValueChange = { pin = it.filter { c -> c.isDigit() }.take(6) })
-                    } else {
-                        PinField(value = confirm, onValueChange = { confirm = it.filter { c -> c.isDigit() }.take(6) })
-                    }
+                    PinField(
+                        value = pin,
+                        onValueChange = { pin = it.filter { c -> c.isDigit() }.take(AccessCodeStore.PIN_LENGTH) },
+                        label = "PIN",
+                        imeAction = ImeAction.Next,
+                    )
+                    PinField(
+                        value = confirm,
+                        onValueChange = { confirm = it.filter { c -> c.isDigit() }.take(AccessCodeStore.PIN_LENGTH) },
+                        label = "Confirm PIN",
+                        imeAction = ImeAction.Done,
+                    )
 
                     if (error != null) {
                         Row(
@@ -137,50 +138,32 @@ fun PinSetupScreen(
                         onClick = {
                             focus.clearFocus()
                             error = null
-                            if (step == PinSetupStep.ENTER) {
-                                if (pin.length != AccessCodeStore.PIN_LENGTH) {
+                            when {
+                                pin.length != AccessCodeStore.PIN_LENGTH ->
                                     error = "PIN must be exactly ${AccessCodeStore.PIN_LENGTH} digits"
-                                } else {
-                                    step = PinSetupStep.CONFIRM
-                                }
-                            } else {
-                                if (confirm != pin) {
+                                confirm.length != AccessCodeStore.PIN_LENGTH ->
+                                    error = "Please confirm your PIN"
+                                pin != confirm -> {
                                     error = "PINs do not match"
                                     confirm = ""
-                                } else {
-                                    onPinReady(pin)
                                 }
+                                else -> onPinReady(pin)
                             }
                         },
-                        enabled = if (step == PinSetupStep.ENTER)
-                            pin.length == AccessCodeStore.PIN_LENGTH
-                        else
-                            confirm.length == AccessCodeStore.PIN_LENGTH,
+                        enabled = pin.length == AccessCodeStore.PIN_LENGTH &&
+                                confirm.length == AccessCodeStore.PIN_LENGTH,
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier.fillMaxWidth().height(48.dp),
                     ) {
                         Icon(Icons.Filled.CheckCircle, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            if (step == PinSetupStep.ENTER) "Continue" else "Save PIN",
+                            if (isReset) "Save New PIN" else "Save PIN",
                             fontWeight = FontWeight.SemiBold,
                         )
                     }
 
-                    if (step == PinSetupStep.CONFIRM) {
-                        TextButton(
-                            onClick = {
-                                step = PinSetupStep.ENTER
-                                confirm = ""
-                                error = null
-                            },
-                            modifier = Modifier.align(Alignment.End),
-                        ) {
-                            Text("Back")
-                        }
-                    }
-
-                    if (onCancel != null && step == PinSetupStep.ENTER) {
+                    if (onCancel != null) {
                         TextButton(
                             onClick = onCancel,
                             modifier = Modifier.align(Alignment.End),
@@ -215,21 +198,21 @@ fun PinSetupScreen(
 private fun PinField(
     value: String,
     onValueChange: (String) -> Unit,
+    label: String = "PIN",
+    imeAction: ImeAction = ImeAction.Done,
 ) {
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
-        label = { Text("PIN") },
+        label = { Text(label) },
         placeholder = { Text("••••••", textAlign = TextAlign.Center) },
         leadingIcon = { Icon(Icons.Filled.Lock, contentDescription = null) },
         visualTransformation = PasswordVisualTransformation(),
         singleLine = true,
         keyboardOptions = KeyboardOptions(
             keyboardType = KeyboardType.NumberPassword,
-            imeAction = ImeAction.Done,
+            imeAction = imeAction,
         ),
         modifier = Modifier.fillMaxWidth(),
     )
 }
-
-
