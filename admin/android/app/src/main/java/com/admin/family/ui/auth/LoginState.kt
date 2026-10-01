@@ -17,10 +17,13 @@ data class LoginUiState(
     val passwordVisible: Boolean = false,
     val phase: LoginPhase = LoginPhase.Idle,
     val serverUrl: String = "",
+    val editingServerUrl: Boolean = false,
+    val serverUrlDraft: String = "",
+    val serverUrlError: String? = null,
 ) {
     val canSubmit: Boolean
         get() = email.contains("@") &&
                 password.length >= 12 &&
-                (mode == AuthMode.LOGIN || displayName.length >= 1) &&
+                (mode == AuthMode.LOGIN || displayName.isNotBlank()) &&
                 phase !is LoginPhase.Authenticating
 }

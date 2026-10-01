@@ -4,58 +4,44 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.autofill.ContentType
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.contentType
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.admin.family.BuildConfig
 import com.admin.family.ui.theme.Danger
 import com.admin.family.ui.theme.Success
 
@@ -67,7 +53,6 @@ fun LoginScreen(
     val ui by vm.ui.collectAsStateWithLifecycle()
     val focus = LocalFocusManager.current
 
-    // Auto-navigate on success
     LaunchedEffect(ui.phase) {
         if (ui.phase is LoginPhase.Success) onSuccess()
     }
@@ -79,8 +64,8 @@ fun LoginScreen(
                 Brush.verticalGradient(
                     colors = listOf(
                         MaterialTheme.colorScheme.background,
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                    )
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                    ),
                 )
             )
     ) {
@@ -88,62 +73,78 @@ fun LoginScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp, vertical = 40.dp),
+                .padding(horizontal = 20.dp, vertical = 28.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Spacer(Modifier.height(24.dp))
+            // ── Brand ──
+            Spacer(Modifier.height(8.dp))
+            Box(
+                modifier = Modifier
+                    .size(60.dp)
+                    .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(16.dp)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    "FG",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+            Spacer(Modifier.height(12.dp))
+            Text(
+                "Family Guard",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                "Admin Console",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.alpha(0.75f),
+            )
 
-            // ---------- Brand ----------
-            BrandHeader()
+            Spacer(Modifier.height(22.dp))
 
-            Spacer(Modifier.height(40.dp))
-
-            // ---------- Card ----------
+            // ── Form ──
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                ),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
             ) {
                 Column(
-                    modifier = Modifier.padding(24.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier.padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    // Title + subtitle
                     Text(
                         text = if (ui.mode == AuthMode.LOGIN) "Welcome back" else "Create account",
-                        style = MaterialTheme.typography.headlineSmall,
+                        style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                     )
                     Text(
                         text = if (ui.mode == AuthMode.LOGIN)
-                            "Sign in to access the Control Room"
+                            "Sign in to access your family console"
                         else
                             "Register as a guardian to get started",
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
 
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(2.dp))
 
-                    // Display name (register only)
-                    AnimatedVisibility(
-                        visible = ui.mode == AuthMode.REGISTER,
-                        enter = fadeIn(tween(200)) + slideInVertically(tween(200)) { -it / 3 },
-                        exit = fadeOut(tween(150)),
-                    ) {
+                    // Display name (register)
+                    if (ui.mode == AuthMode.REGISTER) {
                         OutlinedTextField(
                             value = ui.displayName,
                             onValueChange = vm::onDisplayNameChanged,
                             label = { Text("Display name") },
-                            leadingIcon = {
-                                Icon(Icons.Filled.Person, contentDescription = null)
-                            },
+                            leadingIcon = { Icon(Icons.Filled.Person, contentDescription = null) },
                             singleLine = true,
                             enabled = ui.phase !is LoginPhase.Authenticating,
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .semantics { contentType = ContentType.Name },
                         )
                     }
 
@@ -159,7 +160,9 @@ fun LoginScreen(
                             imeAction = ImeAction.Next,
                         ),
                         enabled = ui.phase !is LoginPhase.Authenticating,
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .semantics { contentType = ContentType.EmailAddress },
                     )
 
                     // Password
@@ -173,7 +176,7 @@ fun LoginScreen(
                                 Icon(
                                     if (ui.passwordVisible) Icons.Filled.Visibility
                                     else Icons.Filled.VisibilityOff,
-                                    contentDescription = "Toggle visibility",
+                                    contentDescription = "Toggle",
                                 )
                             }
                         },
@@ -190,161 +193,213 @@ fun LoginScreen(
                             onDone = { focus.clearFocus(); vm.submit() },
                         ),
                         enabled = ui.phase !is LoginPhase.Authenticating,
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .semantics {
+                                contentType = if (ui.mode == AuthMode.REGISTER)
+                                    ContentType.NewPassword
+                                else
+                                    ContentType.Password
+                            },
                     )
 
-                    // Error message
+                    // Error
                     AnimatedVisibility(
                         visible = ui.phase is LoginPhase.Error,
-                        enter = fadeIn(tween(200)),
-                        exit = fadeOut(tween(150)),
+                        enter = fadeIn(tween(150)),
+                        exit = fadeOut(tween(100)),
                     ) {
-                        ErrorBanner((ui.phase as? LoginPhase.Error)?.message ?: "")
+                        val msg = (ui.phase as? LoginPhase.Error)?.message ?: ""
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Danger.copy(alpha = 0.12f), RoundedCornerShape(8.dp))
+                                .padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                Icons.Filled.Error,
+                                contentDescription = null,
+                                tint = Danger,
+                                modifier = Modifier.size(16.dp),
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                msg,
+                                color = Danger,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
                     }
 
-                    // Submit button
+                    Spacer(Modifier.height(2.dp))
+
+                    // Submit
                     Button(
                         onClick = { focus.clearFocus(); vm.submit() },
                         enabled = ui.canSubmit,
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                        ),
+                        shape = RoundedCornerShape(10.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(52.dp),
+                            .height(48.dp),
                     ) {
                         if (ui.phase is LoginPhase.Authenticating) {
                             CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp),
+                                modifier = Modifier.size(16.dp),
                                 strokeWidth = 2.dp,
                                 color = MaterialTheme.colorScheme.onPrimary,
                             )
-                            Spacer(Modifier.width(12.dp))
-                            Text("Signing in…")
+                            Spacer(Modifier.width(10.dp))
+                            Text("Please wait…")
                         } else {
                             Text(
-                                text = if (ui.mode == AuthMode.LOGIN) "Sign in" else "Create account",
-                                style = MaterialTheme.typography.titleMedium,
+                                if (ui.mode == AuthMode.LOGIN) "Sign in" else "Create account",
+                                style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.SemiBold,
                             )
                         }
                     }
 
-                    // Switch mode
+                    // Mode switch
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            text = if (ui.mode == AuthMode.LOGIN)
-                                "Don't have an account?"
-                            else
-                                "Already have an account?",
-                            style = MaterialTheme.typography.bodyMedium,
+                            if (ui.mode == AuthMode.LOGIN) "No account?" else "Have an account?",
+                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         TextButton(onClick = vm::toggleMode) {
                             Text(
                                 if (ui.mode == AuthMode.LOGIN) "Create one" else "Sign in",
                                 fontWeight = FontWeight.SemiBold,
+                                style = MaterialTheme.typography.bodySmall,
                             )
                         }
                     }
                 }
             }
 
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(12.dp))
 
-            // Server URL badge
-            ServerBadge(ui.serverUrl)
-        }
-    }
-}
+            // ── Server URL ──
+            ServerUrlCard(ui, vm)
 
-// ────────────────────────────────────────────────────────────
-// Components
-// ────────────────────────────────────────────────────────────
+            Spacer(Modifier.height(16.dp))
 
-@Composable
-private fun BrandHeader() {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(
-            modifier = Modifier
-                .size(72.dp)
-                .background(
-                    Brush.linearGradient(
-                        listOf(
-                            MaterialTheme.colorScheme.primary,
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
-                        )
-                    ),
-                    RoundedCornerShape(20.dp),
-                ),
-            contentAlignment = Alignment.Center,
-        ) {
+            // ── Footer ──
             Text(
-                "FG",
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.onPrimary,
-                fontWeight = FontWeight.Bold,
+                text = "v${BuildConfig.VERSION_NAME}  ·  Family Safety",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.alpha(0.5f),
+            )
+            Spacer(Modifier.height(8.dp))
+        }
+    }
+}
+
+@Composable
+private fun ServerUrlCard(ui: LoginUiState, vm: LoginViewModel) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .background(Success, RoundedCornerShape(50)),
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "Server",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.weight(1f))
+                if (!ui.editingServerUrl) {
+                    IconButton(
+                        onClick = vm::startEditingServerUrl,
+                        modifier = Modifier.size(28.dp),
+                    ) {
+                        Icon(
+                            Icons.Filled.Edit,
+                            contentDescription = "Edit",
+                            modifier = Modifier.size(14.dp),
+                        )
+                    }
+                }
+            }
+
+            if (!ui.editingServerUrl) {
+                Text(
+                    text = ui.serverUrl,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            } else {
+                OutlinedTextField(
+                    value = ui.serverUrlDraft,
+                    onValueChange = vm::onServerUrlDraftChanged,
+                    singleLine = true,
+                    label = { Text("Base URL") },
+                    placeholder = { Text("http://127.0.0.1:8000/") },
+                    isError = ui.serverUrlError != null,
+                    supportingText = ui.serverUrlError?.let {
+                        { Text(it, color = Danger) }
+                    },
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Uri,
+                        imeAction = ImeAction.Done,
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = vm::cancelEditingServerUrl,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Icon(Icons.Filled.Close, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Cancel", style = MaterialTheme.typography.bodySmall)
+                    }
+                    Button(
+                        onClick = vm::saveServerUrl,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Save", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+                TextButton(
+                    onClick = vm::resetServerUrl,
+                    modifier = Modifier.align(Alignment.End),
+                ) {
+                    Text("Reset to default", style = MaterialTheme.typography.labelSmall)
+                }
+            }
+
+            Text(
+                text = "On the same phone use 127.0.0.1. " +
+                        "From other devices use Tailscale IP or Funnel URL.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.alpha(0.7f),
             )
         }
-        Spacer(Modifier.height(16.dp))
-        Text(
-            "Family Guard",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
-        )
-        Text(
-            "Admin Console",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.alpha(0.8f),
-        )
     }
-}
-
-@Composable
-private fun ErrorBanner(message: String) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(
-                color = Danger.copy(alpha = 0.12f),
-                shape = RoundedCornerShape(10.dp),
-            )
-            .padding(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            Icons.Filled.Error,
-            contentDescription = null,
-            tint = Danger,
-            modifier = Modifier.size(20.dp),
-        )
-        Spacer(Modifier.width(10.dp))
-        Text(
-            text = message,
-            color = Danger,
-            style = MaterialTheme.typography.bodySmall,
-        )
-    }
-}
-
-@Composable
-private fun ServerBadge(url: String) {
-    Text(
-        text = "● Server: $url",
-        style = MaterialTheme.typography.labelSmall,
-        color = Success,
-        textAlign = TextAlign.Center,
-        modifier = Modifier
-            .background(
-                Success.copy(alpha = 0.1f),
-                RoundedCornerShape(8.dp),
-            )
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-    )
 }

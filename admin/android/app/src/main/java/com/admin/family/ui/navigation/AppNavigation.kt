@@ -8,6 +8,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.admin.family.data.api.ApiClient
 import com.admin.family.data.auth.TokenStore
+import com.admin.family.data.prefs.AppPreferences
 import com.admin.family.data.repository.AuthRepository
 import com.admin.family.data.repository.DeviceRepository
 import com.admin.family.data.repository.SettingsRepository
@@ -38,6 +39,7 @@ fun AppNavigation(
     apiClient: ApiClient,
     authRepository: AuthRepository,
     tokenStore: TokenStore,
+    preferences: AppPreferences,
     navController: NavHostController = rememberNavController(),
 ) {
     // Start at LOGIN if no token, otherwise go straight to CONTROL_ROOM
@@ -53,7 +55,7 @@ fun AppNavigation(
     ) {
         composable(Routes.LOGIN) {
             val vm: LoginViewModel = viewModel(
-                factory = LoginViewModelFactory(apiClient, authRepository, tokenStore),
+                factory = LoginViewModelFactory(apiClient, authRepository, tokenStore, settingsRepository, preferences),
             )
             LoginScreen(
                 vm = vm,

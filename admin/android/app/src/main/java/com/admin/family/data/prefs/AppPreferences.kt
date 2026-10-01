@@ -22,6 +22,12 @@ class AppPreferences(context: Context) {
             prefs.edit().putString(KEY_API_BASE_URL, normalized).apply()
         }
 
+    var lastEmail: String?
+        get() = prefs.getString(KEY_LAST_EMAIL, null)
+        set(value) {
+            prefs.edit().putString(KEY_LAST_EMAIL, value).apply()
+        }
+
     var lastTestSuccessAtMillis: Long
         get() = prefs.getLong(KEY_LAST_TEST_SUCCESS, 0L)
         set(value) {
@@ -45,6 +51,7 @@ class AppPreferences(context: Context) {
     companion object {
         const val PREFS_NAME = "family_admin_prefs"
         const val KEY_API_BASE_URL = "api_base_url"
+        const val KEY_LAST_EMAIL = "last_email"
         const val KEY_LAST_TEST_SUCCESS = "last_test_success_ms"
         const val KEY_LAST_TEST_FAILURE = "last_test_failure_ms"
 
@@ -52,7 +59,7 @@ class AppPreferences(context: Context) {
          * Default points to the emulator loopback host (10.0.2.2 = host machine).
          * Users on a real device must change this in Settings.
          */
-        const val DEFAULT_BASE_URL = "http://10.0.2.2:8000/"
+        const val DEFAULT_BASE_URL = "http://127.0.0.1:8000/"
 
         /**
          * Normalize a user-provided URL:
