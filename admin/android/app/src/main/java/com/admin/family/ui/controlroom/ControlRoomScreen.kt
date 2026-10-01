@@ -15,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -26,6 +27,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,9 +45,19 @@ fun ControlRoomScreen(
     vm: ControlRoomViewModel,
     onOpenSettings: () -> Unit,
     onOpenServer: () -> Unit,
+    onOpenConfigurations: () -> Unit,
     onLogout: () -> Unit,
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
+
+    // Auto-logout when backend rejects the session — no banner, no "sign in" card.
+    // The Auth layer is PIN-based now; if the backend rejects us, we simply
+    // wipe local credentials and return to PIN entry.
+    LaunchedEffect(state) {
+        if (state is ControlRoomState.Unauthorized) {
+            onLogout()
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -58,13 +70,16 @@ fun ControlRoomScreen(
                     IconButton(onClick = onOpenServer) {
                         Icon(Icons.Filled.Cloud, contentDescription = "Server")
                     }
+                    IconButton(onClick = onOpenConfigurations) {
+                        Icon(Icons.Filled.Tune, contentDescription = "Configurations")
+                    }
                     IconButton(onClick = onOpenSettings) {
                         Icon(Icons.Filled.Settings, contentDescription = "Settings")
                     }
                     IconButton(onClick = onLogout) {
                         Icon(
                             Icons.AutoMirrored.Filled.Logout,
-                            contentDescription = "Sign out",
+                            contentDescription = "Lock",
                         )
                     }
                 },
@@ -86,33 +101,17 @@ fun ControlRoomScreen(
                         Text("Loading…")
                     }
                 }
+
                 is ControlRoomState.Unauthorized -> {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = androidx.compose.material3.CardDefaults.cardColors(
-                            containerColor = Danger.copy(alpha = 0.15f),
-                        ),
-                    ) {
-                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text(
-                                "Session expired",
-                                color = Danger,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                            Text(
-                                "Please sign in again.",
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
-                            androidx.compose.material3.Button(
-                                onClick = onLogout,
-                                modifier = Modifier.fillMaxWidth(),
-                            ) {
-                                Text("Sign in")
-                            }
-                        }
+                    // Silent — LaunchedEffect above will navigate away.
+                    // Show only a tiny hint in case navigation is slow.
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(12.dp))
+                        Text("Redirecting…")
                     }
                 }
+
                 is ControlRoomState.Failed -> {
                     Text(
                         text = "Error: ${s.message}",
@@ -120,6 +119,7 @@ fun ControlRoomScreen(
                         style = MaterialTheme.typography.bodyLarge,
                     )
                 }
+
                 is ControlRoomState.Ready -> {
                     ServerSummary(s)
                     Text(

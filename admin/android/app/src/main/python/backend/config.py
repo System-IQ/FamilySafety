@@ -76,6 +76,12 @@ class Settings:
         self.access_code: str = os.getenv("FS_ACCESS_CODE", "").strip()
         self.access_token_minutes: int = int(os.getenv("FS_ACCESS_MIN", "15"))
         self.refresh_token_days: int = int(os.getenv("FS_REFRESH_DAYS", "30"))
+        # SMTP (email delivery for Forgot-PIN flow)
+        self.smtp_host: str = os.getenv("FS_SMTP_HOST", "smtp.gmail.com")
+        self.smtp_port: int = int(os.getenv("FS_SMTP_PORT", "465"))
+        self.smtp_user: str = os.getenv("FS_SMTP_USER", "").strip()
+        self.smtp_pass: str = os.getenv("FS_SMTP_PASS", "").strip()
+        self.smtp_from: str = os.getenv("FS_SMTP_FROM", "").strip() or self.smtp_user
 
 
 settings = Settings()

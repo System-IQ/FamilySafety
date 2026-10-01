@@ -6,6 +6,7 @@ import com.admin.family.data.api.ApiClient
 import com.admin.family.data.api.ControlClient
 import com.admin.family.data.auth.AccessCodeStore
 import com.admin.family.data.auth.ControlTokenStore
+import com.admin.family.data.config.ConfigStore
 import com.admin.family.data.prefs.AppPreferences
 import com.admin.family.data.repository.DefaultSettingsRepository
 import com.admin.family.data.repository.DeviceRepository
@@ -34,6 +35,8 @@ class FamilyAdminApp : Application() {
         private set
     lateinit var tsnetProfiles: TsnetProfileStore
         private set
+    lateinit var configStore: ConfigStore
+        private set
 
     override fun onCreate() {
         super.onCreate()
@@ -57,6 +60,7 @@ class FamilyAdminApp : Application() {
         controlClient = ControlClient()
         controlClient.token = controlTokenStore.token
         tsnetProfiles = TsnetProfileStore(this)
+        configStore = ConfigStore(this)
         tsnetBridge = TsnetBridge(this)
 
         // 3. If code exists: configure backend in background

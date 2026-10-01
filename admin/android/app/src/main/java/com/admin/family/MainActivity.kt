@@ -38,6 +38,7 @@ class MainActivity : FragmentActivity() {
                         preferences = app.preferences,
                         controlClient = app.controlClient,
                         controlTokenStore = app.controlTokenStore,
+                        configStore = app.configStore,
                         onBootstrapBackend = { app.bootstrapBackend(it) },
                     )
                 }

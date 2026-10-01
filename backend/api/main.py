@@ -15,6 +15,7 @@ from .alerts import router as alerts_router
 from .algorithms import router as algorithms_router
 from .audit import router as audit_router
 from .auth import router as auth_router
+from .password_reset import router as password_reset_router
 from .derived import router as derived_router
 from .devices import router as devices_router
 from .events import router as events_router
@@ -42,6 +43,7 @@ def create_app() -> FastAPI:
     app.include_router(system_router)
     app.include_router(version_router)
     app.include_router(auth_router)
+    app.include_router(password_reset_router)
     app.include_router(devices_router)
     app.include_router(events_router)
     app.include_router(audit_router)
