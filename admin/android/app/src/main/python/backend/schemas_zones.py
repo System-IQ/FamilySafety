@@ -1,0 +1,78 @@
+"""Pydantic models for /zones endpoints."""
+from typing import Any, Literal, Optional
+
+from pydantic import BaseModel, ConfigDict, Field
+
+_Day = Literal["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+_HHMM_PATTERN = r"^([01][0-9]|2[0-3]):[0-5][0-9]$"
+
+
+class Center(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+
+
+class Schedule(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    days: list[_Day] = Field(min_length=1)
+    start_time: str = Field(pattern=_HHMM_PATTERN)
+    end_time: str = Field(pattern=_HHMM_PATTERN)
+
+
+class ZoneCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    device_id: str = Field(min_length=4, max_length=128)
+    name: str = Field(min_length=1, max_length=64)
+    center: Center
+    radius_meters: float = Field(ge=10, le=50000)
+    enabled: bool = True
+    schedule: Optional[Schedule] = None
+
+
+class ZoneUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: Optional[str] = Field(default=None, min_length=1, max_length=64)
+    center: Optional[Center] = None
+    radius_meters: Optional[float] = Field(default=None, ge=10, le=50000)
+    enabled: Optional[bool] = None
+    schedule: Optional[Schedule] = None
+    clear_schedule: bool = False
+
+
+class ZoneOut(BaseModel):
+    zone_id: str
+    device_id: str
+    name: str
+    center: Center
+    radius_meters: float
+    enabled: bool
+    schedule: Optional[Schedule] = None
+    created_at: str
+    updated_at: Optional[str] = None
+
+
+class ZoneListResponse(BaseModel):
+    zones: list[ZoneOut]
+
+
+class EvaluateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+    at_utc: Optional[str] = None   # ISO8601 Z; if None -> now
+
+
+class EvaluateResponse(BaseModel):
+    zone_id: str
+    device_id: str
+    distance_meters: float
+    within_radius: bool
+    within_schedule: bool
+    inside: bool
+    entered: bool
+    exited: bool
+    enabled: bool
+    was_inside: bool
+    evaluated_at: str
+    event_id: Optional[str] = None  # if an event was emitted

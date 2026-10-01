@@ -3,85 +3,83 @@ name: Build Admin APK
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
+  build-aar:
+    name: Build tsnet-bridge AAR
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-34 build-tools;34.0.0 ndk;26.1.10909125 cmake;3.22.1'
+      - run: |
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/26.1.10909125" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/26.1.10909125" >> "$GITHUB_ENV"
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.23.1' }
+      - run: |
+          go install golang.org/x/mobile/cmd/gomobile@v0.0.0-20241004191011-08a83c5af9f8
+          go install golang.org/x/mobile/cmd/gobind@v0.0.0-20241004191011-08a83c5af9f8
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - run: gomobile init
+      - working-directory: admin/tsnet-bridge
+        run: |
+          set -e
+          go get tailscale.com@v1.88.4
+          go get golang.org/x/mobile@v0.0.0-20241004191011-08a83c5af9f8
+          go mod tidy
+          cat go.mod
+          grep "golang.org/x/mobile" go.mod
+      - working-directory: admin/tsnet-bridge
+        run: |
+          set -e
+          gomobile bind -target=android/arm64 -androidapi 24 -o tsnetbridge.aar .
+          ls -lh tsnetbridge.aar
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tsnetbridge-aar
+          path: admin/tsnet-bridge/tsnetbridge.aar
+          retention-days: 30
+          if-no-files-found: error
+
   build-admin:
     name: Build Admin debug APK
+    needs: build-aar
     runs-on: ubuntu-latest
     timeout-minutes: 40
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: android-actions/setup-android@v3
         with:
           packages: 'platform-tools platforms;android-34 build-tools;34.0.0'
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: '8.10.2' }
+      - uses: actions/download-artifact@v4
         with:
-          gradle-version: '8.10.2'
-
-      - name: Guard Android project
-        id: guard
-        run: |
+          name: tsnetbridge-aar
+          path: admin/android/app/libs
+      - run: |
           set -e
-
-          if [ ! -f admin/android/settings.gradle.kts ]; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "No admin/android/settings.gradle.kts yet — skipping APK build."
-          else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Verify Android project
-        if: steps.guard.outputs.skip == 'false'
-        working-directory: admin/android
-        run: |
-          set -e
-          gradle :app:tasks --no-daemon
-
-      - name: Build debug APK
-        if: steps.guard.outputs.skip == 'false'
-        working-directory: admin/android
-        run: |
-          set -e
-          gradle :app:assembleDebug --no-daemon --stacktrace
-
-      - name: Verify APK
-        if: steps.guard.outputs.skip == 'false'
-        run: |
-          set -e
-
+          test -s admin/android/app/libs/tsnetbridge.aar
+          ls -lh admin/android/app/libs/tsnetbridge.aar
+      - working-directory: admin/android
+        run: gradle :app:assembleDebug --no-daemon --stacktrace
+      - run: |
           APK_DIR="admin/android/app/build/outputs/apk/debug"
-
           test -d "$APK_DIR"
-          find "$APK_DIR" -maxdepth 1 -type f -name '*.apk' -print
-
-          APK_COUNT="$(find "$APK_DIR" -maxdepth 1 -type f -name '*.apk' | wc -l)"
-
-          if [ "$APK_COUNT" -eq 0 ]; then
-            echo "ERROR: no APK generated"
-            exit 1
-          fi
-
-      - name: Upload APK
-        if: steps.guard.outputs.skip == 'false'
-        uses: actions/upload-artifact@v4
+          find "$APK_DIR" -name '*.apk' -print
+          test "$(find "$APK_DIR" -name '*.apk' | wc -l)" -ge 1
+      - uses: actions/upload-artifact@v4
         with:
           name: admin-debug-apk
           path: admin/android/app/build/outputs/apk/debug/*.apk

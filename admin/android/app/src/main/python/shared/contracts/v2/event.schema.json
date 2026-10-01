@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://familysafety.local/contracts/v2/event.schema.json",
+  "title": "Family Safety Event Contract v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "device_id",
+    "event_type",
+    "severity",
+    "timestamp"
+  ],
+  "properties": {
+    "event_id": { "type": "string", "minLength": 8 },
+    "device_id": { "type": "string", "minLength": 4 },
+    "event_type": {
+      "type": "string",
+      "enum": [
+        "device_online",
+        "device_offline",
+        "connection_degraded",
+        "location_update",
+        "location_stale",
+        "sync_started",
+        "sync_completed",
+        "sync_failed",
+        "safe_zone_enter",
+        "safe_zone_exit",
+        "sos_triggered",
+        "sos_acknowledged",
+        "battery_low",
+        "battery_critical",
+        "permission_changed",
+        "command_issued",
+        "command_completed",
+        "command_failed",
+        "algorithm_published",
+        "algorithm_rolled_back"
+      ]
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["info", "warning", "critical"]
+    },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "payload": {
+      "type": ["object", "null"],
+      "additionalProperties": true
+    },
+    "provenance": {
+      "type": ["object", "null"],
+      "additionalProperties": true
+    },
+    "correlation_id": {
+      "type": ["string", "null"],
+      "minLength": 4
+    }
+  }
+}

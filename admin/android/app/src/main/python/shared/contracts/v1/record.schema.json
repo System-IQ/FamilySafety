@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://familysafety.local/contracts/v1/record.schema.json",
+  "title": "Family Safety Sync Record Contract v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["record_id", "device_id", "sequence_number", "timestamp", "payload_hash", "sync_state"],
+  "properties": {
+    "record_id": { "type": "string", "minLength": 8 },
+    "device_id": { "type": "string", "minLength": 4 },
+    "sequence_number": { "type": "integer", "minimum": 0 },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "payload_hash": { "type": "string", "minLength": 32 },
+    "previous_hash": { "type": ["string", "null"] },
+    "signature": { "type": ["string", "null"] },
+    "sync_state": { "type": "string", "enum": ["pending", "queued", "sending", "acked", "failed", "rejected"] }
+  }
+}

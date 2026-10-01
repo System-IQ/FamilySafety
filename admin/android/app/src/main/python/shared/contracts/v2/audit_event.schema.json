@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://familysafety.local/contracts/v2/audit_event.schema.json",
+  "title": "Family Safety Audit Event Contract v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "audit_id",
+    "actor_user_id",
+    "action",
+    "resource_type",
+    "result",
+    "timestamp"
+  ],
+  "properties": {
+    "audit_id": {
+      "type": "string",
+      "minLength": 8
+    },
+    "actor_user_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 4
+    },
+    "action": {
+      "type": "string",
+      "enum": [
+        "alert.acknowledge",
+        "alert.create",
+        "alert.dismiss",
+        "alert.expire",
+        "alert.resolve",
+        "algorithm.deprecate",
+        "algorithm.promote",
+        "algorithm.register",
+        "command.cancel",
+        "command.issue",
+        "derived.create",
+        "device.create",
+        "device.delete",
+        "device.update",
+        "safe_zone.create",
+        "safe_zone.delete",
+        "safe_zone.update",
+        "user.login",
+        "user.login_failed",
+        "user.logout",
+        "user.refresh",
+        "user.refresh_failed",
+        "user.register"
+      ]
+    },
+    "resource_type": {
+      "type": "string",
+      "enum": [
+        "user",
+        "device",
+        "alert",
+        "safe_zone",
+        "algorithm",
+        "derived",
+        "command",
+        "system"
+      ]
+    },
+    "resource_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1
+    },
+    "result": {
+      "type": "string",
+      "enum": [
+        "success",
+        "failure",
+        "denied"
+      ]
+    },
+    "reason": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 512
+    },
+    "ip_address": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 64
+    },
+    "user_agent": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 512
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "metadata": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": true
+    }
+  }
+}

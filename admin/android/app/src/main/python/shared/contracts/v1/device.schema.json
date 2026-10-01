@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://familysafety.local/contracts/v1/device.schema.json",
+  "title": "Family Safety Device Contract v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "device_id",
+    "device_name",
+    "platform",
+    "android_version",
+    "app_version",
+    "management_state",
+    "connection_state",
+    "battery",
+    "last_seen",
+    "location_capability",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "device_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "device_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "platform": {
+      "type": "string",
+      "const": "android"
+    },
+    "android_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "app_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "management_state": {
+      "type": "string",
+      "enum": [
+        "unmanaged",
+        "managed",
+        "device_owner",
+        "unsupported"
+      ]
+    },
+    "connection_state": {
+      "type": "string",
+      "enum": [
+        "online",
+        "weak",
+        "intermittent",
+        "offline"
+      ]
+    },
+    "battery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "level_percent",
+        "charging",
+        "timestamp"
+      ],
+      "properties": {
+        "level_percent": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "charging": {
+          "type": "boolean"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "last_seen": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "location_capability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "supported",
+        "permission_state",
+        "background_supported"
+      ],
+      "properties": {
+        "supported": {
+          "type": "boolean"
+        },
+        "permission_state": {
+          "type": "string",
+          "enum": [
+            "granted",
+            "denied",
+            "restricted",
+            "not_determined"
+          ]
+        },
+        "background_supported": {
+          "type": "boolean"
+        }
+      }
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

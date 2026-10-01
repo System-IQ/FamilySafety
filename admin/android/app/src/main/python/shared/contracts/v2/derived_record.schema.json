@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://familysafety.local/contracts/v2/derived_record.schema.json",
+  "title": "Family Safety Derived Record Contract v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "record_id",
+    "device_id",
+    "record_type",
+    "timestamp",
+    "payload",
+    "provenance",
+    "quality_score"
+  ],
+  "properties": {
+    "record_id": { "type": "string", "minLength": 8 },
+    "device_id": { "type": "string", "minLength": 4 },
+    "record_type": {
+      "type": "string",
+      "enum": [
+        "cleaned_location",
+        "route_summary",
+        "stop_detection",
+        "speed_anomaly",
+        "geofence_state",
+        "data_quality_report"
+      ]
+    },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "payload": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_record_ids",
+        "algorithm_id",
+        "algorithm_version",
+        "calculated_at",
+        "confidence",
+        "evidence"
+      ],
+      "properties": {
+        "source_record_ids": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 4 }
+        },
+        "algorithm_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{2,63}$"
+        },
+        "algorithm_version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "calculated_at": { "type": "string", "format": "date-time" },
+        "confidence": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+        "evidence": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 3, "maxLength": 512 }
+        },
+        "uncertainty": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["level"],
+          "properties": {
+            "level": {
+              "type": "string",
+              "enum": ["none", "low", "medium", "high"]
+            },
+            "notes": { "type": ["string", "null"], "maxLength": 1024 }
+          }
+        },
+        "input_hash": { "type": ["string", "null"], "minLength": 32 }
+      }
+    },
+    "quality_score": { "type": "number", "minimum": 0, "maximum": 100 },
+    "insufficient_data": {
+      "oneOf": [
+        { "type": "boolean" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["is_insufficient", "reason"],
+          "properties": {
+            "is_insufficient": { "type": "boolean" },
+            "reason": { "type": "string", "minLength": 3, "maxLength": 512 }
+          }
+        }
+      ]
+    },
+    "insufficient_reason": {
+      "type": ["string", "null"],
+      "minLength": 3,
+      "maxLength": 512
+    },
+    "sync_state": {
+      "type": ["string", "null"],
+      "enum": ["pending", "queued", "sending", "acked", "failed", "rejected", null]
+    },
+    "created_at": { "type": "string", "format": "date-time" }
+  }
+}

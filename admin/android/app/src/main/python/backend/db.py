@@ -1,0 +1,371 @@
+"""Dual database layer: SQLite (dev) or PostgreSQL (prod).
+
+Features:
+- ThreadedConnectionPool for PostgreSQL (psycopg2)
+- Automatic retry on connection loss (up to 3 attempts)
+- SQLite '?' -> Postgres '%s' translation
+- Auto-migrations: idempotent DDL runs on init_db()
+- Statement timeout for PostgreSQL (prevents runaway queries)
+
+Detection:
+- DATABASE_URL=postgres://... -> PostgreSQL
+- DATABASE_URL empty          -> SQLite at settings.db_path
+"""
+import logging
+import os
+import sqlite3
+import time
+from contextlib import contextmanager
+from typing import Any, Iterator, Optional
+
+from .config import settings
+
+logger = logging.getLogger("familysafety.db")
+
+_DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+_USE_POSTGRES = _DATABASE_URL.startswith(("postgres://", "postgresql://"))
+
+# PostgreSQL pool (lazy)
+_pool = None
+
+if _USE_POSTGRES:
+    import psycopg2
+    import psycopg2.extras
+    import psycopg2.pool
+
+
+# -------------------------------------------------------------------
+# Schema (idempotent — safe to run at every startup)
+# -------------------------------------------------------------------
+
+_SCHEMA = """
+CREATE TABLE IF NOT EXISTS devices (
+    device_id   TEXT PRIMARY KEY,
+    payload     TEXT NOT NULL,
+    created_at  TEXT NOT NULL,
+    updated_at  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_devices_updated_at
+    ON devices(updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS users (
+    user_id        TEXT PRIMARY KEY,
+    email          TEXT UNIQUE NOT NULL,
+    display_name   TEXT NOT NULL,
+    password_hash  TEXT NOT NULL,
+    created_at     TEXT NOT NULL,
+    updated_at     TEXT NOT NULL,
+    is_active      INTEGER NOT NULL DEFAULT 1
+);
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+
+CREATE TABLE IF NOT EXISTS refresh_tokens (
+    token_id    TEXT PRIMARY KEY,
+    user_id     TEXT NOT NULL,
+    token_hash  TEXT NOT NULL,
+    expires_at  TEXT NOT NULL,
+    created_at  TEXT NOT NULL,
+    revoked     INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_revoked ON refresh_tokens(revoked);
+
+CREATE TABLE IF NOT EXISTS events (
+    event_id        TEXT PRIMARY KEY,
+    device_id       TEXT NOT NULL,
+    event_type      TEXT NOT NULL,
+    severity        TEXT NOT NULL,
+    timestamp       TEXT NOT NULL,
+    payload_json    TEXT NOT NULL DEFAULT '{}',
+    correlation_id  TEXT,
+    created_at      TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_events_device_ts ON events(device_id, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_events_type_ts ON events(event_type, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_events_correlation ON events(correlation_id);
+
+CREATE TABLE IF NOT EXISTS audit_events (
+    audit_id        TEXT PRIMARY KEY,
+    actor_user_id   TEXT,
+    action          TEXT NOT NULL,
+    resource_type   TEXT NOT NULL,
+    resource_id     TEXT,
+    result          TEXT NOT NULL,
+    reason          TEXT,
+    ip_address      TEXT,
+    user_agent      TEXT,
+    timestamp       TEXT NOT NULL,
+    metadata_json   TEXT NOT NULL DEFAULT '{}',
+    FOREIGN KEY (actor_user_id) REFERENCES users(user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_audit_actor_ts ON audit_events(actor_user_id, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_action_ts ON audit_events(action, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_resource ON audit_events(resource_type, resource_id);
+
+CREATE TABLE IF NOT EXISTS safe_zones (
+    zone_id         TEXT PRIMARY KEY,
+    device_id       TEXT NOT NULL,
+    name            TEXT NOT NULL,
+    center_lat      REAL NOT NULL,
+    center_lon      REAL NOT NULL,
+    radius_meters   REAL NOT NULL,
+    enabled         INTEGER NOT NULL DEFAULT 1,
+    schedule_json   TEXT,
+    created_by      TEXT,
+    created_at      TEXT NOT NULL,
+    updated_at      TEXT,
+    FOREIGN KEY (created_by) REFERENCES users(user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_safe_zones_device ON safe_zones(device_id);
+CREATE INDEX IF NOT EXISTS idx_safe_zones_enabled ON safe_zones(enabled);
+
+CREATE TABLE IF NOT EXISTS zone_states (
+    zone_id             TEXT PRIMARY KEY,
+    device_id           TEXT NOT NULL,
+    was_inside          INTEGER NOT NULL DEFAULT 0,
+    last_evaluated_at   TEXT NOT NULL,
+    updated_at          TEXT NOT NULL,
+    FOREIGN KEY (zone_id) REFERENCES safe_zones(zone_id)
+);
+CREATE INDEX IF NOT EXISTS idx_zone_states_device ON zone_states(device_id);
+
+CREATE TABLE IF NOT EXISTS alerts (
+    alert_id                TEXT PRIMARY KEY,
+    device_id               TEXT NOT NULL,
+    alert_type              TEXT NOT NULL,
+    severity                TEXT NOT NULL,
+    state                   TEXT NOT NULL DEFAULT 'new',
+    triggered_at            TEXT NOT NULL,
+    triggered_by_user_id    TEXT,
+    note                    TEXT,
+    last_latitude           REAL,
+    last_longitude          REAL,
+    last_accuracy_meters    REAL,
+    last_location_ts        TEXT,
+    battery_level_percent   INTEGER,
+    acknowledged_by         TEXT,
+    acknowledged_at         TEXT,
+    resolved_at             TEXT,
+    dismissed_at            TEXT,
+    dismiss_reason          TEXT,
+    provenance_json         TEXT,
+    created_at              TEXT NOT NULL,
+    updated_at              TEXT NOT NULL,
+    FOREIGN KEY (triggered_by_user_id) REFERENCES users(user_id),
+    FOREIGN KEY (acknowledged_by) REFERENCES users(user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_alerts_device_state ON alerts(device_id, state, triggered_at DESC);
+CREATE INDEX IF NOT EXISTS idx_alerts_type_ts ON alerts(alert_type, triggered_at DESC);
+CREATE INDEX IF NOT EXISTS idx_alerts_severity_state ON alerts(severity, state);
+
+CREATE TABLE IF NOT EXISTS algorithms (
+    algorithm_id            TEXT NOT NULL,
+    version                 TEXT NOT NULL,
+    name                    TEXT NOT NULL,
+    description             TEXT,
+    input_schema_ref        TEXT NOT NULL,
+    output_schema_ref       TEXT NOT NULL,
+    status                  TEXT NOT NULL DEFAULT 'candidate',
+    test_status             TEXT NOT NULL DEFAULT 'unknown',
+    created_at              TEXT NOT NULL,
+    updated_at              TEXT,
+    deprecated_at           TEXT,
+    deprecation_reason      TEXT,
+    superseded_by           TEXT,
+    created_by              TEXT,
+    metadata_json           TEXT NOT NULL DEFAULT '{}',
+    PRIMARY KEY (algorithm_id, version),
+    FOREIGN KEY (created_by) REFERENCES users(user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_algorithms_status ON algorithms(status);
+CREATE INDEX IF NOT EXISTS idx_algorithms_algorithm ON algorithms(algorithm_id);
+CREATE INDEX IF NOT EXISTS idx_algorithms_production ON algorithms(algorithm_id, status);
+
+CREATE TABLE IF NOT EXISTS derived_records (
+    record_id               TEXT PRIMARY KEY,
+    device_id               TEXT NOT NULL,
+    record_type             TEXT NOT NULL,
+    timestamp               TEXT NOT NULL,
+    payload_json            TEXT NOT NULL DEFAULT '{}',
+    source_record_ids_json  TEXT NOT NULL,
+    algorithm_id            TEXT NOT NULL,
+    algorithm_version       TEXT NOT NULL,
+    calculated_at           TEXT NOT NULL,
+    confidence              REAL NOT NULL,
+    evidence_json           TEXT NOT NULL,
+    uncertainty_level       TEXT NOT NULL DEFAULT 'none',
+    uncertainty_notes       TEXT,
+    input_hash              TEXT,
+    quality_score           REAL NOT NULL,
+    insufficient_data       INTEGER NOT NULL DEFAULT 0,
+    insufficient_reason     TEXT,
+    created_by              TEXT,
+    created_at              TEXT NOT NULL,
+    FOREIGN KEY (created_by) REFERENCES users(user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_derived_device_ts ON derived_records(device_id, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_derived_type_ts ON derived_records(record_type, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_derived_algorithm ON derived_records(algorithm_id, algorithm_version);
+CREATE INDEX IF NOT EXISTS idx_derived_quality ON derived_records(quality_score);
+"""
+
+
+# -------------------------------------------------------------------
+# PostgreSQL pool helpers
+# -------------------------------------------------------------------
+
+def _get_pool():
+    global _pool
+    if _pool is None:
+        dsn = _DATABASE_URL
+        # Render gives postgres:// which psycopg2 accepts
+        # Force SSL for remote connections (Render requires it)
+        if "sslmode=" not in dsn and not dsn.startswith("postgres://localhost"):
+            dsn = dsn + ("&" if "?" in dsn else "?") + "sslmode=require"
+        _pool = psycopg2.pool.ThreadedConnectionPool(
+            minconn=1, maxconn=10, dsn=dsn,
+        )
+        logger.info("PostgreSQL pool created (min=1, max=10)")
+    return _pool
+
+
+class _PgCursor:
+    def __init__(self, cursor):
+        self._c = cursor
+
+    def fetchone(self):
+        return self._c.fetchone()
+
+    def fetchall(self):
+        return self._c.fetchall()
+
+    @property
+    def rowcount(self) -> int:
+        return self._c.rowcount
+
+
+class _PgConn:
+    """Postgres connection wrapper that mimics sqlite3.Connection enough
+    for our repositories."""
+
+    def __init__(self, conn):
+        self._conn = conn
+
+    def execute(self, sql: str, params: tuple = ()):
+        # Translate SQLite placeholders to psycopg2
+        sql = sql.replace("?", "%s")
+        cur = self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute(sql, params)
+        return _PgCursor(cur)
+
+    def executescript(self, sql: str):
+        cur = self._conn.cursor()
+        for stmt in sql.split(";"):
+            stmt = stmt.strip()
+            if stmt:
+                cur.execute(stmt)
+        return cur
+
+    def commit(self):
+        self._conn.commit()
+
+    def rollback(self):
+        self._conn.rollback()
+
+    def close(self):
+        # Returning to pool, not closing
+        pass
+
+
+def _with_retry(operation, max_attempts: int = 3):
+    """Run an operation; on OperationalError, retry with backoff."""
+    last_exc: Optional[Exception] = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            return operation()
+        except psycopg2.OperationalError as exc:
+            last_exc = exc
+            logger.warning("DB op failed (attempt %d/%d): %s",
+                           attempt, max_attempts, exc)
+            if attempt < max_attempts:
+                time.sleep(0.5 * attempt)
+            _get_pool().closeall()
+            global _pool
+            _pool = None
+    raise last_exc  # type: ignore[misc]
+
+
+# -------------------------------------------------------------------
+# Public API
+# -------------------------------------------------------------------
+
+def init_db() -> None:
+    """Run migrations (idempotent). Safe to call on every startup."""
+    if _USE_POSTGRES:
+        def op():
+            pool = _get_pool()
+            conn = pool.getconn()
+            try:
+                wrapper = _PgConn(conn)
+                wrapper.executescript(_SCHEMA)
+                conn.commit()
+            finally:
+                pool.putconn(conn)
+        _with_retry(op)
+        logger.info("PostgreSQL schema ready")
+        return
+
+    settings.db_path.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(settings.db_path) as conn:
+        conn.executescript(_SCHEMA)
+    logger.info("SQLite schema ready at %s", settings.db_path)
+
+
+@contextmanager
+def get_conn() -> Iterator[Any]:
+    if _USE_POSTGRES:
+        pool = _get_pool()
+        conn = pool.getconn()
+        wrapper = _PgConn(conn)
+        try:
+            # Statement timeout: 30s max per query
+            with conn.cursor() as c:
+                c.execute("SET statement_timeout = 30000")
+            yield wrapper
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            pool.putconn(conn)
+        return
+
+    # SQLite
+    conn = sqlite3.connect(settings.db_path)
+    conn.row_factory = sqlite3.Row
+    try:
+        yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def db_backend() -> str:
+    return "postgresql" if _USE_POSTGRES else "sqlite"
+
+
+def ping() -> tuple[bool, Optional[str], float]:
+    """Ping the DB. Returns (ok, error, latency_ms)."""
+    start = time.perf_counter()
+    try:
+        with get_conn() as conn:
+            conn.execute("SELECT 1").fetchone()
+        latency = (time.perf_counter() - start) * 1000
+        return True, None, round(latency, 2)
+    except Exception as exc:
+        latency = (time.perf_counter() - start) * 1000
+        return False, str(exc), round(latency, 2)
