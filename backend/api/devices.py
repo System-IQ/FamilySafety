@@ -1,6 +1,6 @@
 """Device endpoints — double validation + audit on writes."""
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from jsonschema import ValidationError as JsonSchemaError
+from ..validators import JsonSchemaError
 
 from ..audit_repo import record as audit_record
 from ..auth.dependencies import get_current_user

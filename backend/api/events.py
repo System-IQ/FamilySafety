@@ -2,7 +2,7 @@
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from jsonschema import ValidationError as JsonSchemaError
+from ..validators import JsonSchemaError
 
 from ..auth.dependencies import get_current_user
 from ..events_repo import get_event, insert_event, list_events

@@ -7,7 +7,7 @@ exceptions to HTTP codes.
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from jsonschema import ValidationError as JsonSchemaError
+from ..validators import JsonSchemaError
 
 from ..algorithms_repo import (
     AlgorithmError,

@@ -60,13 +60,12 @@ chaquopy {
         version = "3.11"
         buildPython("/usr/bin/python3")
         pip {
-            // No version pins — Chaquopy picks from its curated index.
-            // Pinning versions not in Chaquopy's repo triggers source builds,
-            // which fail for native packages (e.g. pydantic-core needs Rust).
+            // Only pure-Python packages with Chaquopy wheels.
+            // - jsonschema 4.18+ needs rpds-py (Rust) — not available.
+            // - FastAPI pulls pydantic automatically (Chaquopy picks).
             install("fastapi")
             install("uvicorn")
             install("pyjwt")
-            install("jsonschema")
             install("rfc3339-validator")
         }
     }

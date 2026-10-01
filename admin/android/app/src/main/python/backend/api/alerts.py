@@ -6,7 +6,7 @@ Invalid transitions -> 409 Conflict with the reason.
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from jsonschema import ValidationError as JsonSchemaError
+from ..validators import JsonSchemaError
 
 from ..alerts_repo import (
     AlertTransitionError,
