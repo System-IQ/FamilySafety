@@ -1,4 +1,4 @@
-name: Build Admin APK + tsnet-bridge AAR
+name: Build Admin APK
 
 on:
   push:
@@ -11,117 +11,8 @@ permissions:
   contents: read
 
 jobs:
-  build-aar:
-    name: Build tsnet-bridge AAR
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Setup Android SDK + NDK
-        uses: android-actions/setup-android@v3
-        with:
-          packages: 'platform-tools platforms;android-34 build-tools;34.0.0 ndk;26.1.10909125 cmake;3.22.1'
-
-      - name: Export NDK environment
-        run: |
-          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/26.1.10909125" >> "$GITHUB_ENV"
-          echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/26.1.10909125" >> "$GITHUB_ENV"
-
-      - name: Setup Go 1.27.1
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.27.1'
-
-      - name: Configure Go compatibility
-        run: |
-          go env -w GOTOOLCHAIN=auto
-          echo "GOEXPERIMENT=nojsonv2" >> "$GITHUB_ENV"
-          echo "GOFLAGS=-ldflags=-checklinkname=0" >> "$GITHUB_ENV"
-
-      - name: Show toolchain
-        run: |
-          set -e
-          echo "=== GO ==="
-          go version
-          echo
-          echo "=== NDK ==="
-          echo "$ANDROID_NDK_HOME"
-          test -f "$ANDROID_NDK_HOME/source.properties"
-          echo "NDK OK"
-          echo
-          echo "=== HOST ==="
-          uname -a
-          echo
-          echo "=== HOST NDK TOOLCHAIN ==="
-          ls -ld "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/"*
-
-      - name: Install gomobile + gobind
-        run: |
-          set -e
-          go install golang.org/x/mobile/cmd/gomobile@v0.0.0-20241004191011-08a83c5af9f8
-          go install golang.org/x/mobile/cmd/gobind@v0.0.0-20241004191011-08a83c5af9f8
-          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
-
-      - name: Verify gomobile
-        run: |
-          set -e
-          which gomobile
-          which gobind
-          gomobile version || true
-          go version -m "$(which gomobile)" || true
-
-      - name: gomobile init
-        run: |
-          set -e
-          gomobile init
-
-      - name: Verify bridge dependencies
-        working-directory: admin/tsnet-bridge
-        run: |
-          set -e
-          go mod download
-          go mod verify
-
-          echo "=== Android compile check ==="
-          GOOS=android GOARCH=arm64 go build ./...
-
-      - name: Build AAR
-        working-directory: admin/tsnet-bridge
-        run: |
-          set -e
-
-          rm -f tsnetbridge.aar
-
-          gomobile bind \
-            -target=android/arm64 \
-            -androidapi 24 \
-            -o tsnetbridge.aar \
-            .
-
-          test -s tsnetbridge.aar
-          ls -lh tsnetbridge.aar
-          sha256sum tsnetbridge.aar
-
-      - name: Upload AAR
-        uses: actions/upload-artifact@v4
-        with:
-          name: tsnetbridge-aar
-          path: admin/tsnet-bridge/tsnetbridge.aar
-          retention-days: 30
-          if-no-files-found: error
-
   build-admin:
     name: Build Admin debug APK
-    needs: build-aar
     runs-on: ubuntu-latest
     timeout-minutes: 40
 
@@ -156,22 +47,6 @@ jobs:
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
-
-      - name: Download freshly built AAR
-        if: steps.guard.outputs.skip == 'false'
-        uses: actions/download-artifact@v5
-        with:
-          name: tsnetbridge-aar
-          path: admin/android/app/libs
-
-      - name: Verify AAR in Android project
-        if: steps.guard.outputs.skip == 'false'
-        run: |
-          set -e
-
-          test -s admin/android/app/libs/tsnetbridge.aar
-          ls -lh admin/android/app/libs/tsnetbridge.aar
-          sha256sum admin/android/app/libs/tsnetbridge.aar
 
       - name: Verify Android project
         if: steps.guard.outputs.skip == 'false'
